@@ -36,7 +36,7 @@ npx expo start
   - `App.tsx`: Main entry point for the application.
 
 #### Running the Backend
-Ensure that the backend Node.js server is running. Follow the instructions in the [backend README](https://github.com/GaruVA/wctsystem-backend/blob/main/README.md).
+Ensure that the backend Node.js server is running. Follow the instructions in the [backend README](https://github.com/GaruVA/wctsystem-backend/blob/master/README.md).
 
 #### Development Setup
 1. **API Endpoints**: Define API endpoints in the backend and access them using Axios in the frontend.
