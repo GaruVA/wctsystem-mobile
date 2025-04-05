@@ -126,6 +126,13 @@ const MapScreen = () => {
       >
         <MaterialCommunityIcons name="refresh" size={24} color="#fff" />
       </TouchableOpacity>
+
+      {/* Suggest Bin Button */}
+      <TouchableOpacity 
+        style={styles.suggestBinButton}
+      >
+        <MaterialCommunityIcons name="delete" size={28} color="#fff" />
+      </TouchableOpacity>
       
       {selectedBin && (
         <View style={styles.binDetails}>
@@ -188,6 +195,22 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 50,
     right: 80,
+    backgroundColor: '#12805c',
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  suggestBinButton: {
+    position: 'absolute',
+    bottom: 80, // Position it above the bottom of the screen
+    right: 20, // Align it to the right
     backgroundColor: '#12805c',
     width: 50,
     height: 50,
