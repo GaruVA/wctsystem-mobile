@@ -14,7 +14,6 @@ interface Bin {
     coordinates: [number, number];
   };
   fillLevel: number;
-  wasteTypes: string;
 }
 
 const MapScreen = () => {
@@ -42,22 +41,14 @@ const MapScreen = () => {
 
         let location = await Location.getCurrentPositionAsync({});
         setLocation({
-          // latitude: location.coords.latitude,
-          // longitude: location.coords.longitude,
-          latitude:  6.864508658378935,
-          longitude: 79.85970548542655,
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
         });
 
-        // Fetch nearby bins - using a smaller radius for more relevant results
-        const binsNearby = await getBinsNearby(location.coords.latitude, location.coords.longitude, 300);
+        // Fetch bins within 500 meters radius
+        const binsNearby = await getBinsNearby(location.coords.latitude, location.coords.longitude, 500);
         console.log(`Loaded ${binsNearby.length} bins from API`);
-        const mappedBins: Bin[] = binsNearby.map((bin: any) => ({
-          _id: bin._id,
-          location: bin.location,
-          fillLevel: bin.fillLevel,
-          wasteTypes: bin.wasteTypes || 'unknown', // Ensure wasteTypes is always present
-        }));
-        setBins(mappedBins);
+        setBins(binsNearby);
       } catch (error) {
         console.error('Error loading map data:', error);
         Alert.alert('Error', 'Failed to load map data. Please try again.');
@@ -73,15 +64,9 @@ const MapScreen = () => {
     
     setLoading(true);
     try {
-      const binsNearby = await getBinsNearby(location.latitude, location.longitude, 300);
+      const binsNearby = await getBinsNearby(location.latitude, location.longitude, 500);
       console.log(`Refreshed ${binsNearby.length} bins from API`);
-      const mappedBins: Bin[] = binsNearby.map((bin: any) => ({
-        _id: bin._id,
-        location: bin.location,
-        fillLevel: bin.fillLevel,
-        wasteTypes: bin.wasteTypes || 'unknown', // Ensure wasteTypes is always present
-      }));
-      setBins(mappedBins);
+      setBins(binsNearby);
     } catch (error) {
       console.error('Error refreshing bins:', error);
     } finally {
@@ -151,22 +136,17 @@ const MapScreen = () => {
           initialRegion={{
             latitude: location.latitude,
             longitude: location.longitude,
-            latitudeDelta: 0.005, // More zoomed-in view (smaller number = more zoom)
-            longitudeDelta: 0.005, // More zoomed-in view
+            latitudeDelta: 0.01,
+            longitudeDelta: 0.01,
           }}
           onRegionChangeComplete={handleMapRegionChange}
         >
-          {/* User location marker */}
-          <Marker
-            coordinate={{
-              latitude: location.latitude,
-              longitude: location.longitude,
-            }}
-            pinColor="blue"
-            title="Your Location"
+          <Circle
+            center={location}
+            radius={500}
+            strokeColor="rgba(0, 150, 255, 0.5)"
+            fillColor="rgba(0, 150, 255, 0.1)"
           />
-          
-          {/* Bin markers */}
           {bins.map((bin) => (
             <Marker
               key={bin._id}
@@ -177,13 +157,8 @@ const MapScreen = () => {
               onPress={() => setSelectedBin(bin)}
             >
               <View style={styles.marker}>
-                {/* Fill level indicator with color based on percentage */}
                 <View style={[styles.markerInner, { backgroundColor: getFillLevelColor(bin.fillLevel) }]}>
                   <Text style={styles.markerText}>{bin.fillLevel}%</Text>
-                </View>
-                {/* Waste type label */}
-                <View style={styles.wasteTypeTag}>
-                  <Text style={styles.wasteTypeText}>{getWasteTypeAbbreviation(bin.wasteTypes)}</Text>
                 </View>
               </View>
             </Marker>
@@ -239,22 +214,7 @@ const MapScreen = () => {
 
       {selectedBin && (
         <View style={styles.binDetails}>
-          <Text style={styles.binDetailsTitle}>Bin Details</Text>
-          
-          {/* Waste type indicator */}
-          <View style={styles.binTypeIndicator}>
-            <Text style={styles.binTypeText}>{getFullWasteTypeName(selectedBin.wasteTypes)}</Text>
-          </View>
-          
-          {/* Fill level indicator with color matching the map marker */}
-          <View style={styles.fillLevelContainer}>
-            <Text style={styles.binDetailsText}>Fill Level: </Text>
-            <View style={[styles.fillLevelIndicator, { backgroundColor: getFillLevelColor(selectedBin.fillLevel) }]}>
-              <Text style={styles.fillLevelText}>{selectedBin.fillLevel}%</Text>
-            </View>
-          </View>
-          
-          <Text style={styles.binDetailsText}>Waste Type: {getWasteTypeAbbreviation(selectedBin.wasteTypes)}</Text>
+          <Text style={styles.binDetailsText}>Fill Level: {selectedBin.fillLevel}%</Text>
           <Text style={styles.binDetailsText}>Location: {selectedBin.location.coordinates[1].toFixed(6)}, {selectedBin.location.coordinates[0].toFixed(6)}</Text>
           <Text style={styles.binDetailsText}>Bin ID: {selectedBin._id}</Text>
         </View>
@@ -290,51 +250,6 @@ const getFillLevelColor = (fillLevel: number) => {
   if (fillLevel >= 70) return '#F59E0B';
   if (fillLevel >= 50) return '#FBBF24';
   return '#10B981';
-};
-
-const getWasteTypeAbbreviation = (wasteType: string) => {
-  switch (wasteType.toLowerCase()) {
-    case 'organic':
-      return 'ORG';
-    case 'recyclable':
-      return 'REC';
-    case 'general':
-      return 'GEN';
-    case 'hazardous':
-      return 'HAZ';
-    default:
-      return 'UNK'; // Unknown
-  }
-};
-
-const getFullWasteTypeName = (wasteType: string) => {
-  switch (wasteType.toLowerCase()) {
-    case 'organic':
-      return 'Organic Waste';
-    case 'recyclable':
-      return 'Recyclable Waste';
-    case 'general':
-      return 'General Waste';
-    case 'hazardous':
-      return 'Hazardous Waste';
-    default:
-      return 'Unknown Type';
-  }
-};
-
-const getWasteTypeColor = (wasteType: string) => {
-  switch (wasteType.toLowerCase()) {
-    case 'organic':
-      return '#4CAF50'; // Green
-    case 'recyclable':
-      return '#2196F3'; // Blue
-    case 'general':
-      return '#9E9E9E'; // Gray
-    case 'hazardous':
-      return '#FF5722'; // Orange-red
-    default:
-      return '#9C27B0'; // Purple for unknown
-  }
 };
 
 const styles = StyleSheet.create({
@@ -441,18 +356,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: 'bold',
   },
-  wasteTypeTag: {
-    marginTop: 4,
-    backgroundColor: '#12805c',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  wasteTypeText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
   binDetails: {
     position: 'absolute',
     bottom: 20,
@@ -467,43 +370,9 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 5,
   },
-  binDetailsTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 12,
-    color: '#12805c',
-  },
-  binTypeIndicator: {
-    backgroundColor: '#f0f0f0',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 4,
-    marginBottom: 12,
-    alignSelf: 'flex-start',
-  },
-  binTypeText: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#333',
-  },
   binDetailsText: {
     fontSize: 16,
     marginBottom: 8,
-  },
-  fillLevelContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  fillLevelIndicator: {
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 4,
-    marginLeft: 4,
-  },
-  fillLevelText: {
-    color: '#fff',
-    fontWeight: 'bold',
   },
   dialogContainer: {
     flex: 1,
