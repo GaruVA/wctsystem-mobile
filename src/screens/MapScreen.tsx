@@ -4,6 +4,8 @@ import MapView, { Marker, Circle } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { getBinsNearby } from '../services/api'; // Import the API function to get bins
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import SuggestionDialog from '../components/SuggestionDialog';
+import SuggestionBottomSheet from '../components/SuggestionBottomSheet';
 
 interface Bin {
   _id: string;
@@ -23,6 +25,8 @@ const MapScreen = () => {
   const [suggestedLocation, setSuggestedLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [reason, setReason] = useState('');
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [showDialog, setShowDialog] = useState(false);
+  const [confirmEnabled, setConfirmEnabled] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -73,6 +77,7 @@ const MapScreen = () => {
   const handleMapRegionChange = (region: { latitude: number; longitude: number }) => {
     if (suggestionMode) {
       setSuggestedLocation({ latitude: region.latitude, longitude: region.longitude });
+      setConfirmEnabled(true); // Enable confirm button when location is selected
     }
   };
 
@@ -80,8 +85,8 @@ const MapScreen = () => {
     setShowConfirmDialog(true);
   };
 
-  const handleSubmitSuggestion = async () => {
-    if (!suggestedLocation || !reason) return;
+  const handleSubmitSuggestion = async (reason: string) => {
+    if (!suggestedLocation) return;
 
     try {
       // Replace with your API call to submit the suggestion
@@ -110,6 +115,10 @@ const MapScreen = () => {
         setSuggestedLocation({ latitude: location.latitude, longitude: location.longitude });
       }
     }
+  };
+
+  const handleConfirm = () => {
+    setShowDialog(true);
   };
 
   return (
@@ -210,6 +219,28 @@ const MapScreen = () => {
           <Text style={styles.binDetailsText}>Bin ID: {selectedBin._id}</Text>
         </View>
       )}
+
+      {suggestionMode && (
+        <View style={styles.bottomSheet}>
+          <Text style={styles.coordinates}>
+            Selected Location: {suggestedLocation?.latitude.toFixed(6)}, {suggestedLocation?.longitude.toFixed(6)}
+          </Text>
+          <TouchableOpacity
+            style={[styles.confirmButton, confirmEnabled ? styles.confirmButtonEnabled : styles.confirmButtonDisabled]}
+            onPress={handleConfirm}
+            disabled={!confirmEnabled} // Disable button if confirm is not enabled
+          >
+            <Text style={styles.confirmButtonText}>Confirm</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      <SuggestionDialog
+        visible={showDialog}
+        coordinates={suggestedLocation}
+        onSubmit={handleSubmitSuggestion}
+        onCancel={() => setShowDialog(false)}
+      />
     </View>
   );
 };
@@ -372,6 +403,39 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     padding: 10,
     marginBottom: 10,
+  },
+  bottomSheet: {
+    position: 'absolute',
+    bottom: 20,
+    left: 20,
+    right: 20,
+    backgroundColor: 'white',
+    padding: 16,
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  coordinates: {
+    fontSize: 16,
+    marginBottom: 10,
+  },
+  confirmButton: {
+    padding: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  confirmButtonEnabled: {
+    backgroundColor: '#10B981',
+  },
+  confirmButtonDisabled: {
+    backgroundColor: '#D1D5DB',
+  },
+  confirmButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
   },
 });
 
