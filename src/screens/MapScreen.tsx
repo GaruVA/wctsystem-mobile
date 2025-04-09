@@ -163,30 +163,45 @@ const MapScreen = () => {
         </MapView>
       )}
       
-      {/* Truck Button */}
-      <TouchableOpacity 
-        style={styles.truckButton} 
-        onPress={() => Alert.alert('Driver Section', 'Driver section functionality will be connected here.')}
-      >
-        <MaterialCommunityIcons name="truck" size={28} color="#fff" />
-      </TouchableOpacity>
+      {/* Conditionally hide buttons when suggestion mode is enabled */}
+      {!suggestionMode && (
+        <>
+          {/* Truck Button */}
+          <TouchableOpacity 
+            style={styles.truckButton} 
+            onPress={() => Alert.alert('Driver Section', 'Driver section functionality will be connected here.')}
+          >
+            <MaterialCommunityIcons name="truck" size={28} color="#fff" />
+          </TouchableOpacity>
 
-      {/* Refresh Button */}
-      <TouchableOpacity 
-        style={styles.refreshButton} 
-        onPress={refreshBins}
-        disabled={loading}
-      >
-        <MaterialCommunityIcons name="refresh" size={24} color="#fff" />
-      </TouchableOpacity>
+          {/* Refresh Button */}
+          <TouchableOpacity 
+            style={styles.refreshButton} 
+            onPress={refreshBins}
+            disabled={loading}
+          >
+            <MaterialCommunityIcons name="refresh" size={24} color="#fff" />
+          </TouchableOpacity>
 
-      {/* Suggest Bin Button */}
-      <TouchableOpacity 
-        style={styles.suggestBinButton}
-        onPress={toggleSuggestionMode} // Use the toggle function
-      >
-        <MaterialCommunityIcons name="delete" size={28} color="#fff" />
-      </TouchableOpacity>
+          {/* Suggest Bin Button */}
+          <TouchableOpacity 
+            style={styles.suggestBinButton}
+            onPress={toggleSuggestionMode} // Use the toggle function
+          >
+            <MaterialCommunityIcons name="delete" size={28} color="#fff" />
+          </TouchableOpacity>
+        </>
+      )}
+
+      {/* Exit Suggestion Mode Button */}
+      {suggestionMode && (
+        <TouchableOpacity
+          style={styles.exitSuggestionButton}
+          onPress={toggleSuggestionMode} // Exit suggestion mode
+        >
+          <MaterialCommunityIcons name="delete" size={28} color="#fff" />
+        </TouchableOpacity>
+      )}
 
       {selectedBin && (
         <View style={styles.binDetails}>
@@ -266,6 +281,22 @@ const styles = StyleSheet.create({
     bottom: 80, // Position it above the bottom of the screen
     right: 20, // Align it to the right
     backgroundColor: '#12805c',
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  exitSuggestionButton: {
+    position: 'absolute',
+    top: 50, // Position it at the top
+    right: 20, // Align it to the right
+    backgroundColor: '#EF4444', // Red color for exit button
     width: 50,
     height: 50,
     borderRadius: 25,
