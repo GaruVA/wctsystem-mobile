@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Alert, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, Alert, Text, TouchableOpacity, ActivityIndicator, Modal, TextInput, Button } from 'react-native';
 import MapView, { Marker, Circle } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { getBinsNearby } from '../services/api'; // Import the API function to get bins
@@ -19,6 +19,10 @@ const MapScreen = () => {
   const [bins, setBins] = useState<Bin[]>([]);
   const [selectedBin, setSelectedBin] = useState<Bin | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [suggestionMode, setSuggestionMode] = useState(false);
+  const [suggestedLocation, setSuggestedLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [reason, setReason] = useState('');
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -66,6 +70,48 @@ const MapScreen = () => {
     }
   };
 
+  const handleMapRegionChange = (region: { latitude: number; longitude: number }) => {
+    if (suggestionMode) {
+      setSuggestedLocation({ latitude: region.latitude, longitude: region.longitude });
+    }
+  };
+
+  const handleConfirmSuggestion = () => {
+    setShowConfirmDialog(true);
+  };
+
+  const handleSubmitSuggestion = async () => {
+    if (!suggestedLocation || !reason) return;
+
+    try {
+      // Replace with your API call to submit the suggestion
+      console.log('Submitting suggestion:', { location: suggestedLocation, reason });
+      Alert.alert('Success', 'Your suggestion has been submitted.');
+    } catch (error) {
+      console.error('Error submitting suggestion:', error);
+      Alert.alert('Error', 'Failed to submit your suggestion. Please try again.');
+    } finally {
+      setSuggestionMode(false);
+      setShowConfirmDialog(false);
+      setReason('');
+      setSuggestedLocation(null);
+    }
+  };
+
+  const toggleSuggestionMode = () => {
+    if (suggestionMode) {
+      // Exiting suggestion mode
+      setSuggestionMode(false);
+      setSuggestedLocation(null);
+    } else {
+      // Entering suggestion mode
+      setSuggestionMode(true);
+      if (location) {
+        setSuggestedLocation({ latitude: location.latitude, longitude: location.longitude });
+      }
+    }
+  };
+
   return (
     <View style={styles.container}>
       {loading && (
@@ -84,6 +130,7 @@ const MapScreen = () => {
             latitudeDelta: 0.01,
             longitudeDelta: 0.01,
           }}
+          onRegionChangeComplete={handleMapRegionChange}
         >
           <Circle
             center={location}
@@ -107,6 +154,12 @@ const MapScreen = () => {
               </View>
             </Marker>
           ))}
+          {suggestionMode && suggestedLocation && (
+            <Marker
+              coordinate={suggestedLocation}
+              pinColor="red" // Change marker color to red for suggestion mode
+            />
+          )}
         </MapView>
       )}
       
@@ -130,10 +183,11 @@ const MapScreen = () => {
       {/* Suggest Bin Button */}
       <TouchableOpacity 
         style={styles.suggestBinButton}
+        onPress={toggleSuggestionMode} // Use the toggle function
       >
         <MaterialCommunityIcons name="delete" size={28} color="#fff" />
       </TouchableOpacity>
-      
+
       {selectedBin && (
         <View style={styles.binDetails}>
           <Text style={styles.binDetailsText}>Fill Level: {selectedBin.fillLevel}%</Text>
@@ -257,6 +311,36 @@ const styles = StyleSheet.create({
   binDetailsText: {
     fontSize: 16,
     marginBottom: 8,
+  },
+  dialogContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  dialog: {
+    width: '80%',
+    backgroundColor: 'white',
+    padding: 20,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  dialogTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  dialogText: {
+    fontSize: 16,
+    marginBottom: 10,
+  },
+  input: {
+    width: '100%',
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 4,
+    padding: 10,
+    marginBottom: 10,
   },
 });
 
