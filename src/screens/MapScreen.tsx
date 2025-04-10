@@ -8,19 +8,18 @@ import {
   ActivityIndicator,
   TextInput,
   Image,
+  Modal,
 } from 'react-native';
 import MapView, { Marker, Circle } from 'react-native-maps';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import { getBinsNearby } from '../services/api';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-
 import SuggestionDialog from '../components/SuggestionDialog';
 import SuggestionBottomSheet from '../components/SuggestionBottomSheet';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/types';
-
 
 interface Bin {
   _id: string;
@@ -42,6 +41,10 @@ const MapScreen = () => {
   const [reportVisible, setReportVisible] = useState(false);
   const [reportText, setReportText] = useState('');
   const [images, setImages] = useState<string[]>([]);
+  const [suggestionMode, setSuggestionMode] = useState(false);
+  const [suggestedLocation, setSuggestedLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [showDialog, setShowDialog] = useState(false);
+  const [confirmEnabled, setConfirmEnabled] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -56,8 +59,10 @@ const MapScreen = () => {
 
         let location = await Location.getCurrentPositionAsync({});
         setLocation({
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude,
+          // latitude: location.coords.latitude,
+          // longitude: location.coords.longitude,
+          latitude: 6.8645086,
+          longitude: 79.859705,
         });
 
         const binsNearby = await getBinsNearby(location.coords.latitude, location.coords.longitude, 500);
@@ -105,7 +110,41 @@ const MapScreen = () => {
     Alert.alert('Success', 'Issue reported successfully.');
   };
 
-  // Update the navigation function to use the simplified direct navigation
+  const handleMapRegionChange = (region: { latitude: number; longitude: number }) => {
+    if (suggestionMode) {
+      setSuggestedLocation({ latitude: region.latitude, longitude: region.longitude });
+      setConfirmEnabled(true);
+    }
+  };
+
+  const handleSubmitSuggestion = async (reason: string) => {
+    if (!suggestedLocation) return;
+
+    try {
+      console.log('Submitting suggestion:', { location: suggestedLocation, reason });
+      Alert.alert('Success', 'Your suggestion has been submitted.');
+    } catch (error) {
+      console.error('Error submitting suggestion:', error);
+      Alert.alert('Error', 'Failed to submit your suggestion. Please try again.');
+    } finally {
+      setSuggestionMode(false);
+      setShowDialog(false);
+      setSuggestedLocation(null);
+    }
+  };
+
+  const toggleSuggestionMode = () => {
+    if (suggestionMode) {
+      setSuggestionMode(false);
+      setSuggestedLocation(null);
+    } else {
+      setSuggestionMode(true);
+      if (location) {
+        setSuggestedLocation({ latitude: location.latitude, longitude: location.longitude });
+      }
+    }
+  };
+
   const navigateToCollectorLogin = () => {
     navigation.navigate('CollectorLogin');
   };
@@ -128,6 +167,7 @@ const MapScreen = () => {
             latitudeDelta: 0.01,
             longitudeDelta: 0.01,
           }}
+          onRegionChangeComplete={handleMapRegionChange}
         >
           <Circle
             center={location}
@@ -151,13 +191,18 @@ const MapScreen = () => {
               </View>
             </Marker>
           ))}
+          {suggestionMode && suggestedLocation && (
+            <Marker
+              coordinate={suggestedLocation}
+              pinColor="red"
+            />
+          )}
         </MapView>
       )}
-      
+
       {/* Conditionally hide buttons when suggestion mode is enabled */}
       {!suggestionMode && (
         <>
-          {/* Truck Button - Updated with correct navigation */}
           <TouchableOpacity 
             style={styles.truckButton} 
             onPress={navigateToCollectorLogin}
@@ -165,20 +210,46 @@ const MapScreen = () => {
             <MaterialCommunityIcons name="truck" size={28} color="#fff" />
           </TouchableOpacity>
 
-      <TouchableOpacity
-        style={styles.truckButton}
-        onPress={() => Alert.alert('Driver Section', 'Driver section functionality will be connected here.')}
-      >
-        <MaterialCommunityIcons name="truck" size={28} color="#fff" />
-      </TouchableOpacity>
+          <TouchableOpacity style={styles.refreshButton} onPress={refreshBins} disabled={loading}>
+            <MaterialCommunityIcons name="refresh" size={24} color="#fff" />
+          </TouchableOpacity>
 
-      <TouchableOpacity style={styles.refreshButton} onPress={refreshBins} disabled={loading}>
-        <MaterialCommunityIcons name="refresh" size={24} color="#fff" />
-      </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.suggestBinButton}
+            onPress={toggleSuggestionMode}
+          >
+            <MaterialCommunityIcons name="delete" size={28} color="#fff" />
+          </TouchableOpacity>
 
-      <TouchableOpacity style={styles.reportButton} onPress={() => setReportVisible(true)}>
-        <Text style={styles.reportButtonText}>Report</Text>
-      </TouchableOpacity>
+          <TouchableOpacity style={styles.reportButton} onPress={() => setReportVisible(true)}>
+            <Text style={styles.reportButtonText}>Report</Text>
+          </TouchableOpacity>
+        </>
+      )}
+
+      {suggestionMode && (
+        <>
+          <TouchableOpacity
+            style={styles.exitSuggestionButton}
+            onPress={toggleSuggestionMode}
+          >
+            <MaterialCommunityIcons name="close" size={28} color="#fff" />
+          </TouchableOpacity>
+
+          <View style={styles.bottomSheet}>
+            <Text style={styles.coordinates}>
+              Selected Location: {suggestedLocation?.latitude.toFixed(6)}, {suggestedLocation?.longitude.toFixed(6)}
+            </Text>
+            <TouchableOpacity
+              style={[styles.confirmButton, confirmEnabled ? styles.confirmButtonEnabled : styles.confirmButtonDisabled]}
+              onPress={() => setShowDialog(true)}
+              disabled={!confirmEnabled}
+            >
+              <Text style={styles.confirmButtonText}>Confirm</Text>
+            </TouchableOpacity>
+          </View>
+        </>
+      )}
 
       {selectedBin && (
         <View style={styles.binDetails}>
@@ -221,6 +292,13 @@ const MapScreen = () => {
           </View>
         </View>
       )}
+
+      <SuggestionDialog
+        visible={showDialog}
+        coordinates={suggestedLocation}
+        onSubmit={handleSubmitSuggestion}
+        onCancel={() => setShowDialog(false)}
+      />
     </View>
   );
 };
@@ -255,6 +333,13 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3, shadowRadius: 4, elevation: 5,
   },
+  suggestBinButton: {
+    position: 'absolute', top: 50, right: 140,
+    backgroundColor: '#12805c', width: 50, height: 50, borderRadius: 25,
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3, shadowRadius: 4, elevation: 5,
+  },
   reportButton: {
     position: 'absolute', bottom: 80, right: 20,
     backgroundColor: '#F97316', width: 100, height: 50,
@@ -265,6 +350,27 @@ const styles = StyleSheet.create({
   reportButtonText: {
     color: '#fff', fontWeight: 'bold', fontSize: 16,
   },
+  exitSuggestionButton: {
+    position: 'absolute', top: 50, left: 20,
+    backgroundColor: '#EF4444', width: 50, height: 50, borderRadius: 25,
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3, shadowRadius: 4, elevation: 5,
+  },
+  bottomSheet: {
+    position: 'absolute', bottom: 20, left: 20, right: 20,
+    backgroundColor: 'white', padding: 16, borderRadius: 8,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3, shadowRadius: 4, elevation: 5,
+  },
+  coordinates: { fontSize: 16, marginBottom: 8 },
+  confirmButton: {
+    backgroundColor: '#12805c', padding: 10, borderRadius: 8,
+    alignItems: 'center',
+  },
+  confirmButtonEnabled: { opacity: 1 },
+  confirmButtonDisabled: { opacity: 0.5 },
+  confirmButtonText: { color: '#fff', fontWeight: 'bold' },
   marker: { alignItems: 'center', justifyContent: 'center' },
   markerInner: {
     width: 32, height: 32, borderRadius: 16,
