@@ -28,6 +28,7 @@ interface Bin {
     coordinates: [number, number];
   };
   fillLevel: number;
+  wasteType: string; // Added waste type field
 }
 
 type MapScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Map'>;
@@ -66,7 +67,11 @@ const MapScreen = () => {
         });
 
         const binsNearby = await getBinsNearby(location.coords.latitude, location.coords.longitude, 500);
-        setBins(binsNearby);
+        const mappedBins = binsNearby.map((bin: any) => ({
+          ...bin,
+          wasteType: bin.wasteType || 'general', // Default to 'general' if wasteType is missing
+        }));
+        setBins(mappedBins);
       } catch (error) {
         console.error('Error loading map data:', error);
         Alert.alert('Error', 'Failed to load map data. Please try again.');
@@ -81,7 +86,11 @@ const MapScreen = () => {
     setLoading(true);
     try {
       const binsNearby = await getBinsNearby(location.latitude, location.longitude, 500);
-      setBins(binsNearby);
+      const mappedBins = binsNearby.map((bin: any) => ({
+        ...bin,
+        wasteType: bin.wasteType || 'general', // Default to 'general' if wasteType is missing
+      }));
+      setBins(mappedBins);
     } catch (error) {
       console.error('Error refreshing bins:', error);
     } finally {
@@ -188,6 +197,9 @@ const MapScreen = () => {
                 <View style={[styles.markerInner, { backgroundColor: getFillLevelColor(bin.fillLevel) }]}>
                   <Text style={styles.markerText}>{bin.fillLevel}%</Text>
                 </View>
+                <View style={[styles.wasteTypeTag, { backgroundColor: getWasteTypeColor(bin.wasteType) }]}>
+                  <Text style={styles.wasteTypeText}>{getWasteTypeAbbreviation(bin.wasteType)}</Text>
+                </View>
               </View>
             </Marker>
           ))}
@@ -253,6 +265,10 @@ const MapScreen = () => {
 
       {selectedBin && (
         <View style={styles.binDetails}>
+          <Text style={styles.binDetailsTitle}>Bin Details</Text>
+          <View style={[styles.wasteTypeIndicator, { backgroundColor: getWasteTypeColor(selectedBin.wasteType) }]}>
+            <Text style={styles.wasteTypeIndicatorText}>{getWasteTypeName(selectedBin.wasteType)}</Text>
+          </View>
           <Text style={styles.binDetailsText}>Fill Level: {selectedBin.fillLevel}%</Text>
           <Text style={styles.binDetailsText}>
             Location: {selectedBin.location.coordinates[1].toFixed(6)}, {selectedBin.location.coordinates[0].toFixed(6)}
@@ -308,6 +324,51 @@ const getFillLevelColor = (fillLevel: number) => {
   if (fillLevel >= 70) return '#F59E0B';
   if (fillLevel >= 50) return '#FBBF24';
   return '#10B981';
+};
+
+const getWasteTypeAbbreviation = (wasteType: string) => {
+  switch (wasteType.toLowerCase()) {
+    case 'organic':
+      return 'ORG';
+    case 'recyclable':
+      return 'REC';
+    case 'general':
+      return 'GEN';
+    case 'hazardous':
+      return 'HAZ';
+    default:
+      return 'UNK'; // Unknown
+  }
+};
+
+const getWasteTypeName = (wasteType: string) => {
+  switch (wasteType.toLowerCase()) {
+    case 'organic':
+      return 'Organic Waste';
+    case 'recyclable':
+      return 'Recyclable Waste';
+    case 'general':
+      return 'General Waste';
+    case 'hazardous':
+      return 'Hazardous Waste';
+    default:
+      return 'Unknown Type';
+  }
+};
+
+const getWasteTypeColor = (wasteType: string) => {
+  switch (wasteType.toLowerCase()) {
+    case 'organic':
+      return '#4CAF50'; // Green
+    case 'recyclable':
+      return '#2196F3'; // Blue
+    case 'general':
+      return '#9E9E9E'; // Gray
+    case 'hazardous':
+      return '#FF5722'; // Orange-red
+    default:
+      return '#9C27B0'; // Purple for unknown
+  }
 };
 
 const styles = StyleSheet.create({
@@ -378,11 +439,39 @@ const styles = StyleSheet.create({
     borderWidth: 2, borderColor: '#fff',
   },
   markerText: { color: '#fff', fontWeight: 'bold' },
+  wasteTypeTag: {
+    marginTop: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  wasteTypeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
   binDetails: {
     position: 'absolute', bottom: 20, left: 20, right: 20,
     backgroundColor: 'white', padding: 16, borderRadius: 8,
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3, shadowRadius: 4, elevation: 5,
+  },
+  binDetailsTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 10,
+    color: '#12805c',
+  },
+  wasteTypeIndicator: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 4,
+    marginBottom: 10,
+    alignSelf: 'flex-start',
+  },
+  wasteTypeIndicatorText: {
+    color: 'white',
+    fontWeight: 'bold',
   },
   binDetailsText: { fontSize: 16, marginBottom: 8 },
   modalOverlay: {
