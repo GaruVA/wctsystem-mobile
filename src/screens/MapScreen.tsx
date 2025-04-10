@@ -1,14 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Alert, Text, TouchableOpacity, ActivityIndicator, Modal, TextInput, Button } from 'react-native';
+import {
+  View,
+  StyleSheet,
+  Alert,
+  Text,
+  TouchableOpacity,
+  ActivityIndicator,
+  TextInput,
+  Image,
+} from 'react-native';
 import MapView, { Marker, Circle } from 'react-native-maps';
 import * as Location from 'expo-location';
-import { getBinsNearby } from '../services/api'; // Import the API function to get bins
+import * as ImagePicker from 'expo-image-picker';
+import { getBinsNearby } from '../services/api';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+
 import SuggestionDialog from '../components/SuggestionDialog';
 import SuggestionBottomSheet from '../components/SuggestionBottomSheet';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/types';
+
 
 interface Bin {
   _id: string;
@@ -27,12 +39,9 @@ const MapScreen = () => {
   const [bins, setBins] = useState<Bin[]>([]);
   const [selectedBin, setSelectedBin] = useState<Bin | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  const [suggestionMode, setSuggestionMode] = useState(false);
-  const [suggestedLocation, setSuggestedLocation] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [reason, setReason] = useState('');
-  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
-  const [showDialog, setShowDialog] = useState(false);
-  const [confirmEnabled, setConfirmEnabled] = useState(false);
+  const [reportVisible, setReportVisible] = useState(false);
+  const [reportText, setReportText] = useState('');
+  const [images, setImages] = useState<string[]>([]);
 
   useEffect(() => {
     (async () => {
@@ -51,9 +60,7 @@ const MapScreen = () => {
           longitude: location.coords.longitude,
         });
 
-        // Fetch bins within 500 meters radius
         const binsNearby = await getBinsNearby(location.coords.latitude, location.coords.longitude, 500);
-        console.log(`Loaded ${binsNearby.length} bins from API`);
         setBins(binsNearby);
       } catch (error) {
         console.error('Error loading map data:', error);
@@ -64,14 +71,11 @@ const MapScreen = () => {
     })();
   }, []);
 
-  // Function to refresh bins data
   const refreshBins = async () => {
     if (!location) return;
-    
     setLoading(true);
     try {
       const binsNearby = await getBinsNearby(location.latitude, location.longitude, 500);
-      console.log(`Refreshed ${binsNearby.length} bins from API`);
       setBins(binsNearby);
     } catch (error) {
       console.error('Error refreshing bins:', error);
@@ -80,51 +84,25 @@ const MapScreen = () => {
     }
   };
 
-  const handleMapRegionChange = (region: { latitude: number; longitude: number }) => {
-    if (suggestionMode) {
-      setSuggestedLocation({ latitude: region.latitude, longitude: region.longitude });
-      setConfirmEnabled(true); // Enable confirm button when location is selected
+  const pickImages = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      allowsMultipleSelection: true,
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 1,
+    });
+
+    if (!result.canceled) {
+      const uris = result.assets.map(asset => asset.uri);
+      setImages([...images, ...uris]);
     }
   };
 
-  const handleConfirmSuggestion = () => {
-    setShowConfirmDialog(true);
-  };
-
-  const handleSubmitSuggestion = async (reason: string) => {
-    if (!suggestedLocation) return;
-
-    try {
-      // Replace with your API call to submit the suggestion
-      console.log('Submitting suggestion:', { location: suggestedLocation, reason });
-      Alert.alert('Success', 'Your suggestion has been submitted.');
-    } catch (error) {
-      console.error('Error submitting suggestion:', error);
-      Alert.alert('Error', 'Failed to submit your suggestion. Please try again.');
-    } finally {
-      setSuggestionMode(false);
-      setShowConfirmDialog(false);
-      setReason('');
-      setSuggestedLocation(null);
-    }
-  };
-
-  const toggleSuggestionMode = () => {
-    if (suggestionMode) {
-      // Exiting suggestion mode
-      setSuggestionMode(false);
-      setSuggestedLocation(null);
-    } else {
-      // Entering suggestion mode
-      setSuggestionMode(true);
-      if (location) {
-        setSuggestedLocation({ latitude: location.latitude, longitude: location.longitude });
-      }
-    }
-  };
-
-  const handleConfirm = () => {
-    setShowDialog(true);
+  const submitReport = () => {
+    console.log('Report Submitted:', reportText, images);
+    setReportVisible(false);
+    setReportText('');
+    setImages([]);
+    Alert.alert('Success', 'Issue reported successfully.');
   };
 
   // Update the navigation function to use the simplified direct navigation
@@ -140,7 +118,7 @@ const MapScreen = () => {
           <Text style={styles.loadingText}>Loading map data...</Text>
         </View>
       )}
-      
+
       {location && (
         <MapView
           style={styles.map}
@@ -150,7 +128,6 @@ const MapScreen = () => {
             latitudeDelta: 0.01,
             longitudeDelta: 0.01,
           }}
-          onRegionChangeComplete={handleMapRegionChange}
         >
           <Circle
             center={location}
@@ -174,12 +151,6 @@ const MapScreen = () => {
               </View>
             </Marker>
           ))}
-          {suggestionMode && suggestedLocation && (
-            <Marker
-              coordinate={suggestedLocation}
-              pinColor="red" // Change marker color to red for suggestion mode
-            />
-          )}
         </MapView>
       )}
       
@@ -194,64 +165,62 @@ const MapScreen = () => {
             <MaterialCommunityIcons name="truck" size={28} color="#fff" />
           </TouchableOpacity>
 
-          {/* Refresh Button */}
-          <TouchableOpacity 
-            style={styles.refreshButton} 
-            onPress={refreshBins}
-            disabled={loading}
-          >
-            <MaterialCommunityIcons name="refresh" size={24} color="#fff" />
-          </TouchableOpacity>
+      <TouchableOpacity
+        style={styles.truckButton}
+        onPress={() => Alert.alert('Driver Section', 'Driver section functionality will be connected here.')}
+      >
+        <MaterialCommunityIcons name="truck" size={28} color="#fff" />
+      </TouchableOpacity>
 
-          {/* Suggest Bin Button */}
-          <TouchableOpacity 
-            style={styles.suggestBinButton}
-            onPress={toggleSuggestionMode} // Use the toggle function
-          >
-            <MaterialCommunityIcons name="delete" size={28} color="#fff" />
-          </TouchableOpacity>
-        </>
-      )}
+      <TouchableOpacity style={styles.refreshButton} onPress={refreshBins} disabled={loading}>
+        <MaterialCommunityIcons name="refresh" size={24} color="#fff" />
+      </TouchableOpacity>
 
-      {/* Exit Suggestion Mode Button */}
-      {suggestionMode && (
-        <TouchableOpacity
-          style={styles.exitSuggestionButton}
-          onPress={toggleSuggestionMode} // Exit suggestion mode
-        >
-          <MaterialCommunityIcons name="delete" size={28} color="#fff" />
-        </TouchableOpacity>
-      )}
+      <TouchableOpacity style={styles.reportButton} onPress={() => setReportVisible(true)}>
+        <Text style={styles.reportButtonText}>Report</Text>
+      </TouchableOpacity>
 
       {selectedBin && (
         <View style={styles.binDetails}>
           <Text style={styles.binDetailsText}>Fill Level: {selectedBin.fillLevel}%</Text>
-          <Text style={styles.binDetailsText}>Location: {selectedBin.location.coordinates[1].toFixed(6)}, {selectedBin.location.coordinates[0].toFixed(6)}</Text>
+          <Text style={styles.binDetailsText}>
+            Location: {selectedBin.location.coordinates[1].toFixed(6)}, {selectedBin.location.coordinates[0].toFixed(6)}
+          </Text>
           <Text style={styles.binDetailsText}>Bin ID: {selectedBin._id}</Text>
         </View>
       )}
 
-      {suggestionMode && (
-        <View style={styles.bottomSheet}>
-          <Text style={styles.coordinates}>
-            Selected Location: {suggestedLocation?.latitude.toFixed(6)}, {suggestedLocation?.longitude.toFixed(6)}
-          </Text>
-          <TouchableOpacity
-            style={[styles.confirmButton, confirmEnabled ? styles.confirmButtonEnabled : styles.confirmButtonDisabled]}
-            onPress={handleConfirm}
-            disabled={!confirmEnabled} // Disable button if confirm is not enabled
-          >
-            <Text style={styles.confirmButtonText}>Confirm</Text>
-          </TouchableOpacity>
+      {/* Report Modal */}
+      {reportVisible && (
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Report a Bin Issue</Text>
+            <TextInput
+              placeholder="Describe the issue..."
+              value={reportText}
+              onChangeText={setReportText}
+              style={styles.textInput}
+              multiline
+            />
+            <TouchableOpacity style={styles.imagePicker} onPress={pickImages}>
+              <Text style={styles.imagePickerText}>Pick Images</Text>
+            </TouchableOpacity>
+            <View style={styles.imagePreviewContainer}>
+              {images.map((uri, idx) => (
+                <Image key={idx} source={{ uri }} style={styles.previewImage} />
+              ))}
+            </View>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity onPress={() => setReportVisible(false)} style={styles.cancelButton}>
+                <Text style={{ color: '#fff' }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={submitReport} style={styles.submitButton}>
+                <Text style={{ color: '#fff' }}>Submit</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       )}
-
-      <SuggestionDialog
-        visible={showDialog}
-        coordinates={suggestedLocation}
-        onSubmit={handleSubmitSuggestion}
-        onCancel={() => setShowDialog(false)}
-      />
     </View>
   );
 };
@@ -264,189 +233,85 @@ const getFillLevelColor = (fillLevel: number) => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  map: {
-    ...StyleSheet.absoluteFillObject,
-  },
+  container: { flex: 1 },
+  map: { ...StyleSheet.absoluteFillObject },
   loadingContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    zIndex: 1000,
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    justifyContent: 'center', alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.8)', zIndex: 1000,
   },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: '#12805c',
-  },
+  loadingText: { marginTop: 10, fontSize: 16, color: '#12805c' },
   truckButton: {
-    position: 'absolute',
-    top: 50,
-    right: 20,
-    backgroundColor: '#12805c',
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
+    position: 'absolute', top: 50, right: 20,
+    backgroundColor: '#12805c', width: 50, height: 50, borderRadius: 25,
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3, shadowRadius: 4, elevation: 5,
   },
   refreshButton: {
-    position: 'absolute',
-    top: 50,
-    right: 80,
-    backgroundColor: '#12805c',
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
+    position: 'absolute', top: 50, right: 80,
+    backgroundColor: '#12805c', width: 50, height: 50, borderRadius: 25,
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3, shadowRadius: 4, elevation: 5,
   },
-  suggestBinButton: {
-    position: 'absolute',
-    bottom: 80, // Position it above the bottom of the screen
-    right: 20, // Align it to the right
-    backgroundColor: '#12805c',
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
+  reportButton: {
+    position: 'absolute', bottom: 80, right: 20,
+    backgroundColor: '#F97316', width: 100, height: 50,
+    borderRadius: 25, alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3, shadowRadius: 4, elevation: 5,
   },
-  exitSuggestionButton: {
-    position: 'absolute',
-    top: 50, // Position it at the top
-    right: 20, // Align it to the right
-    backgroundColor: '#EF4444', // Red color for exit button
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
+  reportButtonText: {
+    color: '#fff', fontWeight: 'bold', fontSize: 16,
   },
-  marker: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  marker: { alignItems: 'center', justifyContent: 'center' },
   markerInner: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#fff',
+    width: 32, height: 32, borderRadius: 16,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: '#fff',
   },
-  markerText: {
-    color: '#fff',
-    fontWeight: 'bold',
-  },
+  markerText: { color: '#fff', fontWeight: 'bold' },
   binDetails: {
-    position: 'absolute',
-    bottom: 20,
-    left: 20,
-    right: 20,
-    backgroundColor: 'white',
-    padding: 16,
-    borderRadius: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
+    position: 'absolute', bottom: 20, left: 20, right: 20,
+    backgroundColor: 'white', padding: 16, borderRadius: 8,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3, shadowRadius: 4, elevation: 5,
   },
-  binDetailsText: {
-    fontSize: 16,
-    marginBottom: 8,
+  binDetailsText: { fontSize: 16, marginBottom: 8 },
+  modalOverlay: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', zIndex: 1001,
   },
-  dialogContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  modalContent: {
+    width: '90%', backgroundColor: 'white', borderRadius: 12, padding: 20,
   },
-  dialog: {
-    width: '80%',
-    backgroundColor: 'white',
-    padding: 20,
-    borderRadius: 8,
-    alignItems: 'center',
+  modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 10 },
+  textInput: {
+    borderWidth: 1, borderColor: '#ccc', borderRadius: 8,
+    padding: 10, height: 80, marginBottom: 10, textAlignVertical: 'top',
   },
-  dialogTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 10,
+  imagePicker: {
+    backgroundColor: '#12805c', padding: 10, borderRadius: 8,
+    alignItems: 'center', marginBottom: 10,
   },
-  dialogText: {
-    fontSize: 16,
-    marginBottom: 10,
+  imagePickerText: { color: '#fff', fontWeight: '600' },
+  imagePreviewContainer: {
+    flexDirection: 'row', flexWrap: 'wrap', marginBottom: 10,
   },
-  input: {
-    width: '100%',
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 4,
-    padding: 10,
-    marginBottom: 10,
+  previewImage: {
+    width: 60, height: 60, borderRadius: 8, marginRight: 5, marginBottom: 5,
   },
-  bottomSheet: {
-    position: 'absolute',
-    bottom: 20,
-    left: 20,
-    right: 20,
-    backgroundColor: 'white',
-    padding: 16,
-    borderRadius: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
+  modalButtons: {
+    flexDirection: 'row', justifyContent: 'space-between',
   },
-  coordinates: {
-    fontSize: 16,
-    marginBottom: 10,
+  submitButton: {
+    backgroundColor: '#12805c', padding: 10, borderRadius: 8,
+    flex: 0.48, alignItems: 'center',
   },
-  confirmButton: {
-    padding: 10,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  confirmButtonEnabled: {
-    backgroundColor: '#10B981',
-  },
-  confirmButtonDisabled: {
-    backgroundColor: '#D1D5DB',
-  },
-  confirmButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
+  cancelButton: {
+    backgroundColor: '#888', padding: 10, borderRadius: 8,
+    flex: 0.48, alignItems: 'center',
   },
 });
 
