@@ -6,6 +6,9 @@ import { getBinsNearby } from '../services/api'; // Import the API function to g
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import SuggestionDialog from '../components/SuggestionDialog';
 import SuggestionBottomSheet from '../components/SuggestionBottomSheet';
+import { useNavigation } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
+import { RootStackParamList } from '../navigation/types';
 
 interface Bin {
   _id: string;
@@ -16,7 +19,10 @@ interface Bin {
   fillLevel: number;
 }
 
+type MapScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Map'>;
+
 const MapScreen = () => {
+  const navigation = useNavigation<MapScreenNavigationProp>();
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [bins, setBins] = useState<Bin[]>([]);
   const [selectedBin, setSelectedBin] = useState<Bin | null>(null);
@@ -121,6 +127,11 @@ const MapScreen = () => {
     setShowDialog(true);
   };
 
+  // Update the navigation function to use the simplified direct navigation
+  const navigateToCollectorLogin = () => {
+    navigation.navigate('CollectorLogin');
+  };
+
   return (
     <View style={styles.container}>
       {loading && (
@@ -175,10 +186,10 @@ const MapScreen = () => {
       {/* Conditionally hide buttons when suggestion mode is enabled */}
       {!suggestionMode && (
         <>
-          {/* Truck Button */}
+          {/* Truck Button - Updated with correct navigation */}
           <TouchableOpacity 
             style={styles.truckButton} 
-            onPress={() => Alert.alert('Driver Section', 'Driver section functionality will be connected here.')}
+            onPress={navigateToCollectorLogin}
           >
             <MaterialCommunityIcons name="truck" size={28} color="#fff" />
           </TouchableOpacity>
