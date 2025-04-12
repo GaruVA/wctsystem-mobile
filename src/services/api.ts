@@ -136,8 +136,9 @@ export const getCollectorSchedules = async (token: string, params?: {
 }> => {
   console.log('API: Fetching collector schedules');
   try {
-    // Get the collector ID from the token
-    const response = await axios.get(`${API_BASE}/schedules`, {
+    // Use the collector-specific endpoint instead of the general schedules endpoint
+    // This ensures only schedules assigned to the authenticated collector are returned
+    const response = await axios.get(`${API_BASE}/collector/schedules`, {
       headers: { Authorization: `Bearer ${token}` },
       params: params
     });
