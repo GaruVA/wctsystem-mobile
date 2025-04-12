@@ -18,7 +18,7 @@ interface Bin {
   };
   fillLevel: number;
   address?: string;
-  wasteTypes?: string[];
+  wasteType?: string;
 }
 
 interface Schedule {

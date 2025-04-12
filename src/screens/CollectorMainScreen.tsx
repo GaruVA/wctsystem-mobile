@@ -167,16 +167,21 @@ const CollectorMainScreen = () => {
   const binsByWasteType = useMemo(() => {
     if (!area?.bins) return { total: 0, types: {} };
     
+    console.log('Processing bins for waste types');
+    console.log(`Total bins in area: ${area.bins.length}`);
+    
     const types: Record<string, number> = {};
     area.bins.forEach(bin => {
-      if (bin.wasteTypes && Array.isArray(bin.wasteTypes)) {
-        bin.wasteTypes.forEach(type => {
-          types[type] = (types[type] || 0) + 1;
-        });
+      if (bin.wasteType && typeof bin.wasteType === 'string') {
+        // Handle wasteType as a single string value
+        const wasteType = bin.wasteType.trim();
+        types[wasteType] = (types[wasteType] || 0) + 1;
       } else {
         types['General'] = (types['General'] || 0) + 1;
       }
     });
+    
+    console.log('Final waste types count:', types);
     
     return {
       total: area.bins.length,

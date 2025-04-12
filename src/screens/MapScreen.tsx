@@ -327,36 +327,28 @@ const getFillLevelColor = (fillLevel: number) => {
 };
 
 const getWasteTypeAbbreviation = (wasteType: string) => {
-  switch (wasteType.toLowerCase()) {
-    case 'organic':
-      return 'ORG';
-    case 'recyclable':
-      return 'REC';
-    case 'general':
-      return 'GEN';
-    case 'hazardous':
-      return 'HAZ';
-    default:
-      return 'UNK'; // Unknown
-  }
+  if (!wasteType) return 'GEN';
+  
+  // Make the first 3 letters uppercase as an abbreviation
+  const cleanType = wasteType.trim().toUpperCase();
+  return cleanType.substring(0, 3);
 };
 
 const getWasteTypeName = (wasteType: string) => {
-  switch (wasteType.toLowerCase()) {
-    case 'organic':
-      return 'Organic Waste';
-    case 'recyclable':
-      return 'Recyclable Waste';
-    case 'general':
-      return 'General Waste';
-    case 'hazardous':
-      return 'Hazardous Waste';
-    default:
-      return 'Unknown Type';
-  }
+  if (!wasteType) return 'General Waste';
+  
+  // Capitalize the first letter of each word
+  const typeName = wasteType.trim().toLowerCase()
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+    
+  return typeName + ' Waste';
 };
 
 const getWasteTypeColor = (wasteType: string) => {
+  if (!wasteType) return '#9E9E9E'; // Gray for null/undefined
+  
   switch (wasteType.toLowerCase()) {
     case 'organic':
       return '#4CAF50'; // Green
@@ -366,8 +358,16 @@ const getWasteTypeColor = (wasteType: string) => {
       return '#9E9E9E'; // Gray
     case 'hazardous':
       return '#FF5722'; // Orange-red
+    case 'plastic':
+      return '#00BCD4'; // Cyan
+    case 'paper':
+      return '#8BC34A'; // Light green
+    case 'glass':
+      return '#3F51B5'; // Indigo
+    case 'metal':
+      return '#607D8B'; // Blue gray
     default:
-      return '#9C27B0'; // Purple for unknown
+      return '#9C27B0'; // Purple for other types
   }
 };
 
