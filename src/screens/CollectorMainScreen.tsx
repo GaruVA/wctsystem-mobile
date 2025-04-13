@@ -124,11 +124,9 @@ const CollectorMainScreen = () => {
   // Handle schedule selection
   const handleScheduleSelect = (schedule: Schedule) => {
     setSelectedSchedule(schedule);
-    // For future implementation: navigate to schedule detail screen
-    Alert.alert(
-      "Schedule Details", 
-      `You selected schedule ${schedule.name} on ${format(parseISO(schedule.date), 'MMMM d, yyyy')}.\n\nThis will navigate to a detailed view in the future implementation.`
-    );
+    
+    // Navigate to the route screen with the selected schedule
+    navigation.navigate('CollectorRoute', { scheduleId: schedule._id });
   };
 
   // Group schedules by date category

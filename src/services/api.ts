@@ -40,7 +40,7 @@ interface Schedule {
   route: Array<[number, number]>;
   distance: number;
   duration: number;
-  binSequence: string[];
+  binSequence: string[] | Bin[]; // Can be either bin IDs or populated bin objects
   actualStartTime?: string;
   actualEndTime?: string;
   notes?: string;
@@ -154,7 +154,7 @@ export const getCollectorSchedules = async (token: string, params?: {
 export const getScheduleById = async (scheduleId: string, token: string): Promise<Schedule> => {
   console.log(`API: Fetching schedule details for ${scheduleId}`);
   try {
-    const response = await axios.get(`${API_BASE}/schedules/${scheduleId}`, {
+    const response = await axios.get(`${API_BASE}/schedules/${scheduleId}?populateBins=true`, {
       headers: { Authorization: `Bearer ${token}` }
     });
     

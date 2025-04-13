@@ -4,6 +4,7 @@ export type RootStackParamList = {
   Map: undefined;
   CollectorLogin: undefined;
   CollectorMain: undefined;
+  CollectorRoute: { scheduleId: string };
 };
 
 // Helper type to get navigation prop types
