@@ -27,6 +27,18 @@ interface Schedule {
   areaId: {
     _id: string;
     name: string;
+    geometry?: {
+      type: string;
+      coordinates: [number, number][][];
+    };
+    startLocation?: {
+      type: string;
+      coordinates: [number, number];
+    };
+    endLocation?: {
+      type: string;
+      coordinates: [number, number];
+    };
   };
   collectorId?: {
     _id: string;

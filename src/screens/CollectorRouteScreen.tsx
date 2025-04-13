@@ -210,12 +210,12 @@ const CollectorRouteScreen = () => {
             />
           )}
           
-          {/* Start Location Marker */}
-          {schedule.route && schedule.route.length > 0 && (
+          {/* Start Location Marker - Using area's fixed start location */}
+          {schedule.areaId && schedule.areaId.startLocation && schedule.areaId.startLocation.coordinates && (
             <Marker
               coordinate={{
-                latitude: schedule.route[0][1],
-                longitude: schedule.route[0][0],
+                latitude: schedule.areaId.startLocation.coordinates[1],
+                longitude: schedule.areaId.startLocation.coordinates[0],
               }}
               title="Start"
               anchor={{x: 0.5, y: 0.5}}
@@ -231,12 +231,12 @@ const CollectorRouteScreen = () => {
             </Marker>
           )}
           
-          {/* End Location Marker */}
-          {schedule.route && schedule.route.length > 1 && (
+          {/* End Location Marker - Using area's fixed end location */}
+          {schedule.areaId && schedule.areaId.endLocation && schedule.areaId.endLocation.coordinates && (
             <Marker
               coordinate={{
-                latitude: schedule.route[schedule.route.length - 1][1],
-                longitude: schedule.route[schedule.route.length - 1][0],
+                latitude: schedule.areaId.endLocation.coordinates[1],
+                longitude: schedule.areaId.endLocation.coordinates[0],
               }}
               title="End"
               anchor={{x: 0.5, y: 0.5}}
