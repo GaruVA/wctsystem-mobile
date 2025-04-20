@@ -42,6 +42,7 @@ const CollectorRouteScreen = () => {
   const [selectedBin, setSelectedBin] = useState<(Bin & { index: number }) | null>(null);
   const [currentStopIndex, setCurrentStopIndex] = useState<number>(0);
   const [completedStops, setCompletedStops] = useState<string[]>([]);
+  const [allBinsCollected, setAllBinsCollected] = useState<boolean>(false);
   const [activeCollection, setActiveCollection] = useState<boolean>(false);
   
   // Get schedule details
@@ -122,6 +123,12 @@ const CollectorRouteScreen = () => {
   
   // Mark the current bin as collected and advance to next stop
   const markBinCollected = () => {
+    if (!schedule) return;
+    // update completed stops locally
+    const currentBin = schedule.binSequence[currentStopIndex] as Bin;
+    if (currentBin) {
+      setCompletedStops(prev => [...prev, currentBin._id]);
+    }
     setCurrentStopIndex(prevIndex => {
       console.log('markBinCollected: previous index =', prevIndex);
       if (!schedule) {
@@ -136,28 +143,12 @@ const CollectorRouteScreen = () => {
         focusMapOnActiveSegment(nextIndex);
         return nextIndex;
       } else {
-        console.log('Last bin reached. Prompt to complete schedule');
-        Alert.alert(
-          'Collection Complete',
-          'You have reached the last stop. Would you like to complete the schedule?',
-          [
-            {
-              text: 'Complete Schedule',
-              onPress: async () => {
-                if (!schedule || !token) return;
-                try {
-                  const updatedSchedule = await updateScheduleStatus(schedule._id, 'completed', token);
-                  setSchedule(updatedSchedule);
-                  setActiveCollection(false);
-                } catch (error) {
-                  console.error('Error completing schedule:', error);
-                  Alert.alert('Error', 'Failed to complete schedule.');
-                }
-              }
-            },
-            { text: 'Stay', style: 'cancel' }
-          ]
-        );
+        // All bins collected: focus segment from last bin to end point
+        setAllBinsCollected(true);
+        // clear selected bin
+        setSelectedBin(null);
+        // focus map on last-to-end segment
+        focusEndSegment(prevIndex);
         return prevIndex;
       }
     });
@@ -222,6 +213,20 @@ const CollectorRouteScreen = () => {
     );
   };
   
+  // Focus map on segment from last collected bin to end point
+  const focusEndSegment = (lastIndex: number) => {
+    if (!schedule?.areaId?.endLocation?.coordinates || !schedule) return;
+    const lastBin = schedule.binSequence[lastIndex] as Bin;
+    const endCoords = schedule.areaId.endLocation.coordinates;
+    mapRef.current?.fitToCoordinates(
+      [
+        { latitude: lastBin.location.coordinates[1], longitude: lastBin.location.coordinates[0] },
+        { latitude: endCoords[1], longitude: endCoords[0] }
+      ],
+      { edgePadding: { top:50, right:50, bottom:50, left:50 }, animated: true }
+    );
+  };
+
   // First, fix the active route segment function
   const getActiveRouteSegment = () => {
     if (!schedule || !schedule.route || !schedule.binSequence) {
@@ -314,17 +319,30 @@ const CollectorRouteScreen = () => {
   
   // Get the polyline coordinates for active route segment
   const getActiveRouteCoordinates = useMemo(() => {
-    if (!schedule || !schedule.route || !schedule.binSequence) return [];
-    
-    if (activeCollection) {
-      return getActiveRouteSegment();
-    } else {
-      // Return full route when not in active collection mode
-      return schedule.route.map((point) => ({
-        latitude: point[1],
-        longitude: point[0],
-      }));
-    }
+    if (!schedule || !schedule.route || !activeCollection) return [];
+    const endCoords = schedule.areaId?.endLocation?.coordinates;
+    if (!endCoords) return [];
+    // Determine last reference bin: use currentStopIndex (last collected) or first if none collected
+    const refIndex = Math.max(0, currentStopIndex);
+    const refBin = schedule.binSequence[refIndex] as Bin;
+    if (!refBin || !refBin.location?.coordinates) return [];
+    // Find closest route point index to the bin
+    const binCoord = refBin.location.coordinates;
+    let nearestIdx = 0;
+    let minDist = Infinity;
+    schedule.route.forEach((pt, idx) => {
+      const dx = pt[0] - binCoord[0];
+      const dy = pt[1] - binCoord[1];
+      const dist = dx * dx + dy * dy;
+      if (dist < minDist) {
+        minDist = dist;
+        nearestIdx = idx;
+      }
+    });
+    // Slice from nearest route point to end of route
+    const segment = schedule.route.slice(nearestIdx);
+    // Map to LatLng
+    return segment.map(pt => ({ latitude: pt[1], longitude: pt[0] }));
   }, [schedule, activeCollection, currentStopIndex]);
   
   // Get the remaining route coordinates (shown in lighter color)
@@ -419,7 +437,7 @@ const CollectorRouteScreen = () => {
     }
     // Slice segments
     const active = fullCoords.slice(prevIdx, currentIdx + 1);
-    const future = fullCoords.slice(currentIdx + 1);
+    const future = fullCoords.slice(currentIdx); // include current bin to next
     return { activeSegmentCoords: active, futureSegmentCoords: future };
   }, [schedule, currentStopIndex]);
 
@@ -466,35 +484,41 @@ const CollectorRouteScreen = () => {
           showsCompass={true}
           toolbarEnabled={false}
         >
-          {activeCollection ? (
-            // Only active and future segments when collecting
-            <>
-              {activeSegmentCoords.length > 0 && (
-                <Polyline
-                  coordinates={activeSegmentCoords}
-                  strokeWidth={5}
-                  strokeColor="#12805c"  // Normal green for active
-                  zIndex={3}
-                />
-              )}
-              {futureSegmentCoords.length > 0 && (
-                <Polyline
-                  coordinates={futureSegmentCoords}
-                  strokeWidth={4}
-                  strokeColor="rgba(18, 128, 92, 0.5)"  // Greyed out for future
-                  zIndex={2}
-                />
-              )}
-            </>
-          ) : (
-            // Full route when not collecting
-            schedule?.route && (
-              <Polyline
-                coordinates={schedule.route.map(pt => ({ latitude: pt[1], longitude: pt[0] }))}
-                strokeWidth={4}
-                strokeColor="#12805c"
-              />
-            )
+          {/* Route polyline */}
+          {/* Active and future while collecting */}
+          {activeCollection && !isScheduleCompleted() && activeSegmentCoords.length > 0 && (
+            <Polyline
+              coordinates={activeSegmentCoords}
+              strokeWidth={5}
+              strokeColor="#12805c"
+              zIndex={3}
+            />
+          )}
+          {activeCollection && !isScheduleCompleted() && futureSegmentCoords.length > 0 && (
+            <Polyline
+              coordinates={futureSegmentCoords}
+              strokeWidth={4}
+              strokeColor="rgba(18,128,92,0.5)"
+              zIndex={2}
+            />
+          )}
+          {/* Final segment once all bins collected */}
+          {activeCollection && isScheduleCompleted() && futureSegmentCoords.length > 0 && (
+            <Polyline
+              coordinates={futureSegmentCoords}
+              strokeWidth={5}
+              strokeColor="#12805c"
+              zIndex={3}
+            />
+          )}
+          {/* Full route when not yet started */}
+          {!activeCollection && schedule?.route?.length > 0 && (
+            <Polyline
+              coordinates={schedule.route.map(pt => ({ latitude: pt[1], longitude: pt[0] }))}
+              strokeWidth={4}
+              strokeColor="#12805c"
+              zIndex={1}
+            />
           )}
           
           {/* Start Location Marker - Using area's fixed start location */}
@@ -619,20 +643,42 @@ const CollectorRouteScreen = () => {
           {/* Progress indicator */}
           <View style={styles.progressIndicator}>
             <Text style={styles.progressText}>
-              Stop {currentStopIndex + 1} of {schedule.binSequence?.length || 0}
+              {allBinsCollected ?
+                `Completed ${completedStops.length} of ${schedule.binSequence.length}` :
+                `Completed ${completedStops.length} of ${schedule.binSequence.length}`
+              }
             </Text>
             <View style={styles.progressBar}>
               <View 
                 style={[
                   styles.progressFill, 
-                  { width: `${((currentStopIndex + 1) / (schedule.binSequence?.length || 1)) * 100}%` }
+                  { width: `${(completedStops.length / (schedule.binSequence.length || 1)) * 100}%` }
                 ]} 
               />
             </View>
           </View>
           
           {/* Current Stop Card */}
-          {schedule.binSequence && currentStopIndex < schedule.binSequence.length && (
+          {allBinsCollected ? (
+            <View style={styles.currentStopCard}>
+              <Text style={styles.currentStopTitle}>All bins have been collected</Text>
+              <Text style={styles.currentStopBinId}>Proceed to end point</Text>
+              <TouchableOpacity style={styles.markCollectedButton} onPress={async () => {
+                if (!schedule || !token) return;
+                try {
+                  const updated = await updateScheduleStatus(schedule._id, 'completed', token);
+                  setSchedule(updated);
+                  setActiveCollection(false);
+                } catch (error) {
+                  console.error(error);
+                  Alert.alert('Error', 'Failed to complete schedule.');
+                }
+              }}>
+                <MaterialCommunityIcons name="flag-checkered" size={24} color="#fff" />
+                <Text style={styles.markCollectedButtonText}>Finish Route</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
             <View style={styles.currentStopCard}>
               {(() => {
                 const currentBin = schedule.binSequence[currentStopIndex];
