@@ -89,36 +89,42 @@ const CollectorRouteScreen = () => {
   // Start collection process
   const handleStartCollection = async () => {
     if (!schedule || !token) return;
-    
-    try {
-      // Only allow starting if the status is 'scheduled'
-      if (schedule.status !== 'scheduled') {
-        Alert.alert(
-          'Cannot Start Collection',
-          'This collection is already in progress or has been completed.'
-        );
-        return;
-      }
-      
-      // Update the status to 'in-progress'
-      const updatedSchedule = await updateScheduleStatus(schedule._id, 'in-progress', token);
-      setSchedule(updatedSchedule);
-      setActiveCollection(true);
-      
-      // Focus on the first stop
-      if (updatedSchedule.binSequence && updatedSchedule.binSequence.length > 0) {
-        focusOnStop(0);
-      }
-      
-      // Show confirmation to the user
+    // Only allow starting if the status is 'scheduled'
+    if (schedule.status !== 'scheduled') {
       Alert.alert(
-        'Collection Started',
-        'Your collection route has been started. Follow the stops in order to complete your collection.'
+        'Cannot Start Collection',
+        'This collection is already in progress or has been completed.'
       );
+      return;
+    }
+    // Immediately switch to in-progress UI and reset stop state
+    setActiveCollection(true);
+    setCompletedStops([]);
+    setAllBinsCollected(false);
+    setCurrentStopIndex(0);
+    setSelectedBin(null);
+    try {
+      // Update the server status
+      await updateScheduleStatus(schedule._id, 'in-progress', token);
+      // Re-fetch the schedule with populated bins so the in-progress UI loads correctly
+      const refreshed = await getScheduleById(schedule._id, token);
+      setSchedule(refreshed);
+      // Set the first stop as selected for the UI
+      if (refreshed.binSequence && refreshed.binSequence.length > 0 && typeof refreshed.binSequence[0] !== 'string') {
+        setSelectedBin({ ...(refreshed.binSequence[0] as Bin), index: 0 });
+      }
     } catch (error) {
       console.error('Error starting collection:', error);
       Alert.alert('Error', 'Failed to start collection. Please try again.');
+      return;
     }
+    // Focus on the first stop
+    focusOnStop(0);
+    // Inform user
+    Alert.alert(
+      'Collection Started',
+      'Your collection route has been started. Follow the stops in order to complete your collection.'
+    );
   };
   
   // Mark the current bin as collected and advance to next stop
