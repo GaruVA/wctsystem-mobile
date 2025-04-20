@@ -10,10 +10,11 @@ import {
   Platform,
   SafeAreaView,
   StatusBar,
+  FlatList,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE, Region } from 'react-native-maps';
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { useCollectorAuth } from '../context/CollectorAuthContext';
@@ -34,11 +35,10 @@ const CollectorRouteScreen = () => {
   const { scheduleId } = route.params;
   const { token } = useCollectorAuth();
   const mapRef = useRef<MapView>(null);
-  const bottomSheetRef = useRef(null);
   
   const [loading, setLoading] = useState(true);
   const [schedule, setSchedule] = useState<Schedule | null>(null);
-  const [bottomSheetOpen, setBottomSheetOpen] = useState(true);
+  const [selectedBin, setSelectedBin] = useState<(Bin & { index: number }) | null>(null);
   
   // Get schedule details
   useEffect(() => {
@@ -138,15 +138,10 @@ const CollectorRouteScreen = () => {
         { latitude: maxLat, longitude: maxLng },
       ],
       {
-        edgePadding: { top: 50, right: 50, bottom: 200, left: 50 },
+        edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
         animated: true,
       }
     );
-  };
-  
-  // Toggle bottom sheet
-  const toggleBottomSheet = () => {
-    setBottomSheetOpen(!bottomSheetOpen);
   };
   
   // Return to collector main screen
@@ -179,7 +174,7 @@ const CollectorRouteScreen = () => {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#f9f9f9" />
       
-      {/* Map View */}
+      {/* Map View - Taking up approximately 60% of screen height */}
       <View style={styles.mapContainer}>
         <MapView
           ref={mapRef}
@@ -206,7 +201,6 @@ const CollectorRouteScreen = () => {
               }))}
               strokeWidth={4}
               strokeColor="#12805c"
-              lineDashPattern={[0]}
             />
           )}
           
@@ -218,16 +212,12 @@ const CollectorRouteScreen = () => {
                 longitude: schedule.areaId.startLocation.coordinates[0],
               }}
               title="Start"
+              description="Depot - Start Point"
               anchor={{x: 0.5, y: 0.5}}
             >
-              <View style={{
-                width: 14,
-                height: 14,
-                borderRadius: 50,
-                backgroundColor: 'green',
-                borderWidth: 2,
-                borderColor: 'white',
-              }} />
+              <View style={styles.startMarkerContainer}>
+                <MaterialCommunityIcons name="home-variant" size={16} color="#FFF" />
+              </View>
             </Marker>
           )}
           
@@ -239,20 +229,16 @@ const CollectorRouteScreen = () => {
                 longitude: schedule.areaId.endLocation.coordinates[0],
               }}
               title="End"
+              description="Offload Facility"
               anchor={{x: 0.5, y: 0.5}}
             >
-              <View style={{
-                width: 14,
-                height: 14,
-                borderRadius: 50,
-                backgroundColor: 'blue',
-                borderWidth: 2,
-                borderColor: 'white',
-              }} />
+              <View style={styles.endMarkerContainer}>
+                <MaterialCommunityIcons name="factory" size={16} color="#FFF" />
+              </View>
             </Marker>
           )}
           
-          {/* Bin Markers */}
+          {/* Bin Markers - Numbered as per specification */}
           {schedule.binSequence && Array.isArray(schedule.binSequence) && schedule.binSequence.map((binItem: any, index: number) => {
             // Check if the bin item is a string ID or a populated bin object
             // If it's a string ID, we can't show it yet as we don't have the bin data
@@ -280,56 +266,27 @@ const CollectorRouteScreen = () => {
                 title={`Bin ${index + 1}`}
                 description={`Fill Level: ${bin.fillLevel || 0}% - ${bin.wasteType || 'General'}`}
                 anchor={{x: 0.5, y: 0.5}}
+                onPress={() => {
+                  // Center map on selected bin
+                  mapRef.current?.animateToRegion({
+                    latitude: bin.location.coordinates[1],
+                    longitude: bin.location.coordinates[0],
+                    latitudeDelta: LATITUDE_DELTA / 2,
+                    longitudeDelta: LONGITUDE_DELTA / 2,
+                  }, 500);
+                  
+                  // Also highlight this bin in the list below
+                  setSelectedBin({...bin, index});
+                }}
               >
                 {/* Custom Bin Marker */}
-                <View style={{
-                  position: 'relative',
-                  width: 24,
-                  height: 28,
-                }}>
+                <View style={styles.binMarkerContainer}>
                   {/* Main Bin Icon - Color based on fill level */}
-                  <View style={{
-                    width: 24,
-                    height: 24,
-                    backgroundColor: getBinFillColor(bin.fillLevel || 0),
-                    borderRadius: 4,
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    shadowColor: '#000',
-                    shadowOffset: { width: 0, height: 2 },
-                    shadowOpacity: 0.3,
-                    shadowRadius: 2,
-                    elevation: 3,
-                  }}>
-                    <Text style={{
-                      color: 'white',
-                      fontSize: 8,
-                      fontWeight: 'bold',
-                    }}>
-                      {bin.fillLevel || 0}%
-                    </Text>
-                  </View>
-                  
-                  {/* Waste Type Label */}
-                  <View style={{
-                    position: 'absolute',
-                    bottom: -5,
-                    left: 0,
-                    width: '100%',
-                    alignItems: 'center',
-                  }}>
-                    <View style={{
-                      backgroundColor: 'white',
-                      borderRadius: 2,
-                      paddingHorizontal: 2,
-                    }}>
-                      <Text style={{
-                        fontSize: 9,
-                        fontWeight: 'bold',
-                      }}>
-                        {bin.wasteType ? bin.wasteType.substring(0, 3) : 'GEN'}
-                      </Text>
-                    </View>
+                  <View style={[
+                    styles.binMarker, 
+                    { backgroundColor: getBinFillColor(bin.fillLevel || 0) }
+                  ]}>
+                    <Text style={styles.binMarkerNumber}>{index + 1}</Text>
                   </View>
                 </View>
               </Marker>
@@ -350,123 +307,99 @@ const CollectorRouteScreen = () => {
         </View>
       </View>
       
-      {/* Bottom Sheet */}
-      <View style={[
-        styles.bottomSheet,
-        { height: bottomSheetOpen ? 280 : 65 }
-      ]}>
-        {/* Bottom Sheet Header */}
-        <TouchableOpacity style={styles.bottomSheetHeader} onPress={toggleBottomSheet}>
-          <View style={styles.bottomSheetHeaderContent}>
-            <Text style={styles.bottomSheetTitle}>Collection Details</Text>
-            <MaterialCommunityIcons
-              name={bottomSheetOpen ? "chevron-down" : "chevron-up"}
-              size={24}
-              color="#333333"
-            />
-          </View>
-        </TouchableOpacity>
+      {/* Bin Stops List - Bottom section */}
+      <View style={styles.stopsContainer}>
+        <View style={styles.stopsHeader}>
+          <Text style={styles.stopsTitle}>Collection Stops</Text>
+          <Text style={styles.stopsSubtitle}>
+            {schedule.binSequence && Array.isArray(schedule.binSequence) ? schedule.binSequence.length : 0} bins total
+          </Text>
+        </View>
         
-        {/* Bottom Sheet Content */}
-        {bottomSheetOpen && (
-          <View style={styles.bottomSheetContent}>
-            {/* Schedule Info */}
-            <View style={styles.scheduleInfo}>
-              <View style={styles.scheduleDetail}>
-                <MaterialCommunityIcons name="calendar" size={20} color="#666666" />
-                <Text style={styles.scheduleDetailText}>
-                  {format(new Date(schedule.date), 'MMMM d, yyyy')}
-                </Text>
-              </View>
-              
-              <View style={styles.scheduleDetail}>
-                <MaterialCommunityIcons name="clock-outline" size={20} color="#666666" />
-                <Text style={styles.scheduleDetailText}>
-                  {(() => {
-                    try {
-                      const startTimeStr = schedule.startTime ? 
-                        format(new Date(`1970-01-01T${schedule.startTime}`), 'h:mm a') : 
-                        'No start time';
-                        
-                      const endTimeStr = schedule.endTime ? 
-                        ` - ${format(new Date(`1970-01-01T${schedule.endTime}`), 'h:mm a')}` : 
-                        '';
-                        
-                      return `${startTimeStr}${endTimeStr}`;
-                    } catch (error) {
-                      console.log('Error formatting time:', error);
-                      return 'Time not available';
-                    }
-                  })()}
-                </Text>
-              </View>
-              
-              <View style={styles.scheduleStats}>
-                <View style={styles.statItem}>
-                  <FontAwesome5 name="trash-alt" size={16} color="#666" />
-                  <Text style={styles.statText}>
-                    {schedule.binSequence && Array.isArray(schedule.binSequence) ? schedule.binSequence.length : 0} bins
-                  </Text>
-                </View>
-                <View style={styles.statItem}>
-                  <FontAwesome5 name="road" size={16} color="#666" />
-                  <Text style={styles.statText}>
-                    {schedule.distance ? schedule.distance.toFixed(1) : "0.0"} km
-                  </Text>
-                </View>
-                <View style={styles.statItem}>
-                  <FontAwesome5 name="clock" size={16} color="#666" />
-                  <Text style={styles.statText}>
-                    {schedule.duration ? Math.round(schedule.duration) : 0} min
-                  </Text>
-                </View>
-              </View>
-              
-              <View style={styles.statusContainer}>
-                <Text style={styles.statusLabel}>Status:</Text>
-                <View style={[styles.statusBadge, getStatusStyle(schedule.status)]}>
-                  <Text style={styles.statusText}>{schedule.status}</Text>
-                </View>
-              </View>
-            </View>
+        {/* Scrollable List of Stops */}
+        <FlatList
+          data={Array.isArray(schedule.binSequence) ? 
+            // Filter out any string items, only pass bin objects to FlatList
+            schedule.binSequence.filter(item => typeof item !== 'string') as Bin[] : 
+            []
+          }
+          keyExtractor={(item, index) => item._id || `stop-${index}`}
+          renderItem={({ item, index }) => {
+            const bin = item as Bin;
             
-            {/* Action Button */}
-            {schedule.status === 'scheduled' && (
-              <TouchableOpacity
-                style={styles.actionButton}
-                onPress={handleStartCollection}
-              >
-                <Text style={styles.actionButtonText}>Start Collection</Text>
-                <MaterialCommunityIcons name="play-circle-outline" size={20} color="#ffffff" />
-              </TouchableOpacity>
-            )}
-            
-            {schedule.status === 'in-progress' && (
-              <TouchableOpacity
-                style={[styles.actionButton, styles.continueButton]}
+            return (
+              <TouchableOpacity 
+                style={[
+                  styles.stopItem,
+                  selectedBin?._id === bin._id ? styles.selectedStopItem : null
+                ]}
                 onPress={() => {
-                  Alert.alert('Collection in Progress', 'Continue with your collection route.');
+                  // Center map on bin
+                  mapRef.current?.animateToRegion({
+                    latitude: bin.location.coordinates[1],
+                    longitude: bin.location.coordinates[0],
+                    latitudeDelta: LATITUDE_DELTA / 2,
+                    longitudeDelta: LONGITUDE_DELTA / 2,
+                  }, 500);
+                  
+                  // Highlight this bin in the list
+                  setSelectedBin({...bin, index});
                 }}
               >
-                <Text style={styles.actionButtonText}>Continue Collection</Text>
-                <MaterialCommunityIcons name="progress-check" size={20} color="#ffffff" />
+                <View style={styles.stopNumberContainer}>
+                  <View style={[
+                    styles.stopNumberBadge,
+                    { backgroundColor: getBinFillColor(bin.fillLevel || 0) }
+                  ]}>
+                    <Text style={styles.stopNumberText}>{index + 1}</Text>
+                  </View>
+                </View>
+                
+                <View style={styles.stopDetails}>
+                  <View style={styles.stopDetailsRow}>
+                    <Text style={styles.stopBinId}>Bin ID: {bin._id.substring(bin._id.length - 8)}</Text>
+                    <MaterialCommunityIcons name="information-outline" size={16} color="#12805c" />
+                  </View>
+                  
+                  <View style={styles.fillLevelContainer}>
+                    <Text style={styles.fillLevelText}>Fill Level:</Text>
+                    <View style={styles.fillLevelBar}>
+                      <View 
+                        style={[
+                          styles.fillLevelIndicator, 
+                          { 
+                            width: `${bin.fillLevel || 0}%`,
+                            backgroundColor: getBinFillColor(bin.fillLevel || 0)
+                          }
+                        ]} 
+                      />
+                    </View>
+                    <Text style={styles.fillLevelPercentage}>{bin.fillLevel || 0}%</Text>
+                  </View>
+                  
+                  {bin.wasteType && (
+                    <View style={styles.wasteTypeContainer}>
+                      <Text style={styles.wasteTypeLabel}>{bin.wasteType}</Text>
+                    </View>
+                  )}
+                </View>
               </TouchableOpacity>
-            )}
-            
-            {(schedule.status === 'completed' || schedule.status === 'cancelled') && (
-              <TouchableOpacity
-                style={[styles.actionButton, styles.viewDetailsButton]}
-                onPress={() => {
-                  Alert.alert('Collection Details', 'View collection history details.');
-                }}
-              >
-                <Text style={styles.actionButtonText}>View Details</Text>
-                <MaterialCommunityIcons name="clipboard-text-outline" size={20} color="#ffffff" />
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
+            );
+          }}
+          ItemSeparatorComponent={() => <View style={styles.separator} />}
+                  />
       </View>
+      
+      {/* Start Collection Button (FAB) */}
+      {schedule.status === 'scheduled' && (
+        <TouchableOpacity 
+          style={styles.fab}
+          onPress={handleStartCollection}
+        >
+          <MaterialCommunityIcons name="play" size={24} color="#ffffff" />
+          <Text style={styles.fabText}>Start Collection</Text>
+        </TouchableOpacity>
+      )}
     </SafeAreaView>
   );
 };
@@ -522,7 +455,7 @@ const styles = StyleSheet.create({
     marginVertical: 12,
   },
   mapContainer: {
-    flex: 1,
+    height: '60%', // Take up 60% of the screen height
     position: 'relative',
   },
   map: {
@@ -564,86 +497,195 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 5,
   },
-  startMarker: {
+  startMarkerContainer: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     backgroundColor: '#4CAF50',
-    borderRadius: 20,
-    padding: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 3,
   },
-  endMarker: {
-    backgroundColor: '#F44336',
-    borderRadius: 20,
-    padding: 8,
+  endMarkerContainer: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#3F51B5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 3,
   },
-  bottomSheet: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: 'white',
+  binMarkerContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  binMarker: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 3,
+  },
+  binMarkerNumber: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  stopsContainer: {
+    height: '40%', // Take up 40% of screen height
+    backgroundColor: '#f9f9f9',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    paddingHorizontal: 20,
+    padding: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -3 },
     shadowOpacity: 0.1,
     shadowRadius: 5,
     elevation: 10,
-    paddingBottom: Platform.OS === 'ios' ? 25 : 15,
+    paddingBottom: 90, // Overlap the map slightly
   },
-  bottomSheetHeader: {
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  bottomSheetHeaderContent: {
+  stopsHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
   },
-  bottomSheetTitle: {
+  stopsTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
   },
-  bottomSheetContent: {
-    paddingVertical: 15,
-  },
-  scheduleInfo: {
-    marginBottom: 15,
-  },
-  scheduleDetail: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  scheduleDetailText: {
-    marginLeft: 10,
-    fontSize: 16,
-    color: '#333',
-  },
-  scheduleStats: {
-    flexDirection: 'row',
-    marginVertical: 10,
-  },
-  statItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 20,
-  },
-  statText: {
-    marginLeft: 8,
+  stopsSubtitle: {
     fontSize: 14,
     color: '#666',
   },
-  statusContainer: {
+  stopItem: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  selectedStopItem: {
+    borderColor: '#12805c',
+    borderWidth: 2,
+  },
+  stopNumberContainer: {
+    marginRight: 12,
+  },
+  stopNumberBadge: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  stopNumberText: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  stopDetails: {
+    flex: 1,
+  },
+  stopDetailsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  stopBinId: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333',
+  },
+  fillLevelContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 5,
+    marginBottom: 8,
   },
-  statusLabel: {
-    fontSize: 14,
-    color: '#333',
-    marginRight: 10,
+  fillLevelText: {
+    fontSize: 12,
+    color: '#666',
+    width: 65,
+  },
+  fillLevelBar: {
+    flex: 1,
+    height: 8,
+    backgroundColor: '#EEEEEE',
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginHorizontal: 8,
+  },
+  fillLevelIndicator: {
+    height: '100%',
+  },
+  fillLevelPercentage: {
+    fontSize: 12,
+    color: '#666',
+    width: 30,
+    textAlign: 'right',
+  },
+  wasteTypeContainer: {
+    backgroundColor: '#E8F5E9',
+    borderRadius: 4,
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+    alignSelf: 'flex-start',
+  },
+  wasteTypeLabel: {
+    fontSize: 12,
+    color: '#2E7D32',
+  },
+  separator: {
+    height: 8,
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    backgroundColor: '#12805c',
+    borderRadius: 28,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 5,
+  },
+  fabText: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+    fontSize: 16,
+    marginLeft: 8,
   },
   statusBadge: {
     paddingVertical: 4,
@@ -665,32 +707,6 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 12,
     fontWeight: '500',
-  },
-  actionButton: {
-    flexDirection: 'row',
-    backgroundColor: '#12805c',
-    borderRadius: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-    elevation: 3,
-  },
-  continueButton: {
-    backgroundColor: '#FFA000',
-  },
-  viewDetailsButton: {
-    backgroundColor: '#5C6BC0',
-  },
-  actionButtonText: {
-    color: 'white',
-    fontWeight: '600',
-    fontSize: 16,
-    marginRight: 8,
   },
   backButton: {
     marginTop: 20,

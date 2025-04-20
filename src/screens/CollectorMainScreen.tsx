@@ -321,7 +321,7 @@ const CollectorMainScreen = () => {
                           onPress={() => handleScheduleSelect(schedule)}
                         >
                           <Text style={styles.actionButtonText}>
-                            {schedule.status === 'scheduled' ? 'Start' : 
+                            {schedule.status === 'scheduled' ? 'View Route' : 
                              schedule.status === 'in-progress' ? 'Continue' : 
                              'Details'}
                           </Text>
