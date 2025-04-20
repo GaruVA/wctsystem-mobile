@@ -357,8 +357,12 @@ const CollectorRouteScreen = () => {
                 
                 <View style={styles.stopDetails}>
                   <View style={styles.stopDetailsRow}>
-                    <Text style={styles.stopBinId}>Bin ID: {bin._id.substring(bin._id.length - 8)}</Text>
-                    <MaterialCommunityIcons name="information-outline" size={16} color="#12805c" />
+                    <Text style={styles.stopBinId}>Bin ID: {bin._id}</Text> 
+                    {bin.wasteType && (
+                    <View style={styles.wasteTypeContainer}>
+                      <Text style={styles.wasteTypeLabel}>{bin.wasteType}</Text>
+                    </View>
+                    )}
                   </View>
                   
                   <View style={styles.fillLevelContainer}>
@@ -377,11 +381,7 @@ const CollectorRouteScreen = () => {
                     <Text style={styles.fillLevelPercentage}>{bin.fillLevel || 0}%</Text>
                   </View>
                   
-                  {bin.wasteType && (
-                    <View style={styles.wasteTypeContainer}>
-                      <Text style={styles.wasteTypeLabel}>{bin.wasteType}</Text>
-                    </View>
-                  )}
+                  
                 </View>
               </TouchableOpacity>
             );
@@ -588,7 +588,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
-    elevation: 2,
+    elevation: 1,
   },
   selectedStopItem: {
     borderColor: '#12805c',
@@ -667,9 +667,10 @@ const styles = StyleSheet.create({
   fab: {
     position: 'absolute',
     bottom: 20,
-    right: 20,
+    marginHorizontal: 16,
+    width: 378,  
     backgroundColor: '#12805c',
-    borderRadius: 28,
+    borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 16,
     flexDirection: 'row',
