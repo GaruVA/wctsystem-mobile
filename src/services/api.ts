@@ -56,6 +56,7 @@ interface Schedule {
   actualStartTime?: string;
   actualEndTime?: string;
   notes?: string;
+  completedBins?: string[]; // Add the completedBins property to the interface
 }
 
 interface AreaData {
@@ -185,16 +186,38 @@ export const updateScheduleStatus = async (
 ): Promise<Schedule> => {
   console.log(`API: Updating schedule ${scheduleId} status to ${status}`);
   try {
-    const response = await axios.patch(
-      `${API_BASE}/schedules/${scheduleId}`, 
+    // Use the collector-specific endpoint for updating schedule status
+    const response = await axios.put(
+      `${API_BASE}/collector/schedules/${scheduleId}/status`, 
       { status }, 
       { headers: { Authorization: `Bearer ${token}` } }
     );
     
     console.log('API: Schedule status updated successfully');
-    return response.data;
+    return response.data.schedule;
   } catch (error) {
     console.error('API: Failed to update schedule status:', error);
+    throw error;
+  }
+};
+
+export const updateScheduleBinCollected = async (
+  scheduleId: string,
+  binId: string,
+  token: string
+): Promise<Schedule> => {
+  console.log(`API: Marking bin ${binId} as collected in schedule ${scheduleId}`);
+  try {
+    const response = await axios.post(
+      `${API_BASE}/schedules/${scheduleId}/collect-bin`,
+      { binId },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    
+    console.log('API: Bin marked as collected successfully');
+    return response.data;
+  } catch (error) {
+    console.error('API: Failed to mark bin as collected:', error);
     throw error;
   }
 };

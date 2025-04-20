@@ -11,6 +11,7 @@ import {
   SafeAreaView,
   StatusBar,
   FlatList,
+  Image,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -19,7 +20,7 @@ import { MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { useCollectorAuth } from '../context/CollectorAuthContext';
 import { RootStackParamList } from '../navigation/types';
-import { getScheduleById, updateScheduleStatus, type Schedule, type Bin } from '../services/api';
+import { getScheduleById, updateScheduleStatus, updateScheduleBinCollected, type Schedule, type Bin } from '../services/api';
 
 type CollectorRouteNavigationProp = StackNavigationProp<RootStackParamList, 'CollectorRoute'>;
 type CollectorRouteRouteProp = RouteProp<RootStackParamList, 'CollectorRoute'>;
@@ -39,6 +40,9 @@ const CollectorRouteScreen = () => {
   const [loading, setLoading] = useState(true);
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [selectedBin, setSelectedBin] = useState<(Bin & { index: number }) | null>(null);
+  const [currentStopIndex, setCurrentStopIndex] = useState<number>(0);
+  const [completedStops, setCompletedStops] = useState<string[]>([]);
+  const [activeCollection, setActiveCollection] = useState<boolean>(false);
   
   // Get schedule details
   useEffect(() => {
@@ -48,17 +52,27 @@ const CollectorRouteScreen = () => {
       try {
         setLoading(true);
         const scheduleData = await getScheduleById(scheduleId, token);
+        console.log('Schedule data loaded. Status:', scheduleData.status);
+        console.log('Bin sequence type:', typeof scheduleData.binSequence[0]);
+        
         setSchedule(scheduleData);
+        
+        // Initialize completed stops if available from the server
+        if (scheduleData.completedBins && Array.isArray(scheduleData.completedBins)) {
+          setCompletedStops(scheduleData.completedBins);
+        }
+        
+        // Check if the schedule is already in progress and set the active collection state
+        if (scheduleData.status === 'in-progress') {
+          console.log('Setting active collection state to true');
+          setActiveCollection(true);
+        }
         
         // Center map on the route
         if (scheduleData && scheduleData.route && scheduleData.route.length > 0) {
-          const initialCoordinate = {
-            latitude: scheduleData.route[0][1],  // Fixed: Using longitude/latitude in correct order
-            longitude: scheduleData.route[0][0], // Fixed: Using longitude/latitude in correct order
-            latitudeDelta: LATITUDE_DELTA,
-            longitudeDelta: LONGITUDE_DELTA,
-          };
-          mapRef.current?.animateToRegion(initialCoordinate, 1000);
+          setTimeout(() => {
+            fitMapToRoute();
+          }, 500);
         }
       } catch (error) {
         console.error('Error loading schedule details:', error);
@@ -88,16 +102,170 @@ const CollectorRouteScreen = () => {
       // Update the status to 'in-progress'
       const updatedSchedule = await updateScheduleStatus(schedule._id, 'in-progress', token);
       setSchedule(updatedSchedule);
+      setActiveCollection(true);
+      
+      // Focus on the first stop
+      if (updatedSchedule.binSequence && updatedSchedule.binSequence.length > 0) {
+        focusOnStop(0);
+      }
       
       // Show confirmation to the user
       Alert.alert(
         'Collection Started',
-        'Your collection route has been started. Follow the map to complete your collection.'
+        'Your collection route has been started. Follow the stops in order to complete your collection.'
       );
     } catch (error) {
       console.error('Error starting collection:', error);
       Alert.alert('Error', 'Failed to start collection. Please try again.');
     }
+  };
+  
+  // Mark the current bin as collected and advance to next stop
+  const markBinCollected = () => {
+    setCurrentStopIndex(prevIndex => {
+      console.log('markBinCollected: previous index =', prevIndex);
+      if (!schedule) {
+        console.log('markBinCollected: no schedule loaded');
+        return prevIndex;
+      }
+      const totalBins = schedule.binSequence.length;
+      const nextIndex = prevIndex + 1;
+      if (nextIndex < totalBins) {
+        console.log('Advancing to next stop:', nextIndex);
+        setSelectedBin({ ...(schedule.binSequence[nextIndex] as Bin), index: nextIndex });
+        focusMapOnActiveSegment(nextIndex);
+        return nextIndex;
+      } else {
+        console.log('Last bin reached. Prompt to complete schedule');
+        Alert.alert(
+          'Collection Complete',
+          'You have reached the last stop. Would you like to complete the schedule?',
+          [
+            {
+              text: 'Complete Schedule',
+              onPress: async () => {
+                if (!schedule || !token) return;
+                try {
+                  const updatedSchedule = await updateScheduleStatus(schedule._id, 'completed', token);
+                  setSchedule(updatedSchedule);
+                  setActiveCollection(false);
+                } catch (error) {
+                  console.error('Error completing schedule:', error);
+                  Alert.alert('Error', 'Failed to complete schedule.');
+                }
+              }
+            },
+            { text: 'Stay', style: 'cancel' }
+          ]
+        );
+        return prevIndex;
+      }
+    });
+  };
+
+  // Focus the map on a specific stop
+  const focusOnStop = (stopIndex: number) => {
+    if (!schedule || !schedule.binSequence || !mapRef.current) return;
+    
+    const bin = schedule.binSequence[stopIndex];
+    if (!bin || typeof bin === 'string') return;
+    
+    // Set the current stop
+    setCurrentStopIndex(stopIndex);
+    setSelectedBin({...bin, index: stopIndex});
+    
+    // Focus map on the appropriate segment
+    focusMapOnActiveSegment(stopIndex);
+  };
+  
+  // Focus map on active segment of the route
+  const focusMapOnActiveSegment = (stopIndex: number) => {
+    if (!schedule || !schedule.route || !schedule.binSequence || !mapRef.current) return;
+    
+    const bin = schedule.binSequence[stopIndex];
+    if (!bin || typeof bin === 'string' || !bin.location || !bin.location.coordinates) return;
+    
+    // For the first stop, show from depot to first stop
+    if (stopIndex === 0 && schedule.areaId && schedule.areaId.startLocation) {
+      const startPoint = {
+        latitude: schedule.areaId.startLocation.coordinates[1], 
+        longitude: schedule.areaId.startLocation.coordinates[0]
+      };
+      const stopPoint = {
+        latitude: bin.location.coordinates[1],
+        longitude: bin.location.coordinates[0]
+      };
+      
+      mapRef.current.fitToCoordinates(
+        [startPoint, stopPoint],
+        { edgePadding: { top: 50, right: 50, bottom: 50, left: 50 }, animated: true }
+      );
+      return;
+    }
+    
+    // For stops in the middle, show from previous stop to current stop
+    const prevBin = schedule.binSequence[stopIndex - 1];
+    if (!prevBin || typeof prevBin === 'string' || !prevBin.location || !prevBin.location.coordinates) return;
+    
+    const prevPoint = {
+      latitude: prevBin.location.coordinates[1],
+      longitude: prevBin.location.coordinates[0]
+    };
+    const currentPoint = {
+      latitude: bin.location.coordinates[1],
+      longitude: bin.location.coordinates[0]
+    };
+    
+    mapRef.current.fitToCoordinates(
+      [prevPoint, currentPoint],
+      { edgePadding: { top: 50, right: 50, bottom: 100, left: 50 }, animated: true }
+    );
+  };
+  
+  // First, fix the active route segment function
+  const getActiveRouteSegment = () => {
+    if (!schedule || !schedule.route || !schedule.binSequence) {
+      console.log("Missing required data for route segment");
+      return schedule?.route?.map(point => ({
+        latitude: point[1],
+        longitude: point[0]
+      })) || [];
+    }
+    
+    console.log(`Getting active route segment for stop ${currentStopIndex + 1}`);
+    
+    // If this is a new state (has binSequence array but items are strings instead of objects)
+    // Just show the entire route since we can't calculate segments
+    const isBinPopulated = schedule.binSequence.length > 0 && 
+                          typeof schedule.binSequence[0] !== 'string' &&
+                          schedule.binSequence[0]?.location;
+    
+    if (!isBinPopulated) {
+      console.log("Bins not populated with location data, showing full route");
+      return schedule.route.map(point => ({
+        latitude: point[1],
+        longitude: point[0]
+      }));
+    }
+    
+    // Default: return the entire route for now to ensure something displays
+    return schedule.route.map(point => ({
+      latitude: point[1],
+      longitude: point[0]
+    }));
+  };
+
+  // Function to check if the current schedule is completed
+  const isScheduleCompleted = () => {
+    if (!schedule || !schedule.binSequence) return false;
+    
+    // Check if all bins are collected
+    return completedStops.length === schedule.binSequence.length;
+  };
+  
+  // Function to check if a specific bin is already collected
+  const isBinCollected = (binId: string) => {
+    return completedStops.includes(binId);
   };
   
   // Map bounds calculation for route
@@ -144,11 +312,117 @@ const CollectorRouteScreen = () => {
     );
   };
   
+  // Get the polyline coordinates for active route segment
+  const getActiveRouteCoordinates = useMemo(() => {
+    if (!schedule || !schedule.route || !schedule.binSequence) return [];
+    
+    if (activeCollection) {
+      return getActiveRouteSegment();
+    } else {
+      // Return full route when not in active collection mode
+      return schedule.route.map((point) => ({
+        latitude: point[1],
+        longitude: point[0],
+      }));
+    }
+  }, [schedule, activeCollection, currentStopIndex]);
+  
+  // Get the remaining route coordinates (shown in lighter color)
+  const getRemainingRouteCoordinates = useMemo(() => {
+    if (!activeCollection || !schedule || !schedule.route) return [];
+    
+    // If we're on the last stop, return empty array
+    if (currentStopIndex >= (schedule.binSequence?.length || 0) - 1) return [];
+    
+    // Try to find the current bin in the route
+    const currentBin = schedule.binSequence?.[currentStopIndex];
+    if (!currentBin || typeof currentBin === 'string' || !currentBin.location) return [];
+    
+    const currentCoords = [currentBin.location.coordinates[0], currentBin.location.coordinates[1]];
+    
+    // Find closest point in route to current bin
+    let currentPointIndex = -1;
+    let minDistance = Infinity;
+    
+    schedule.route.forEach((point, index) => {
+      const distance = Math.sqrt(
+        Math.pow(point[0] - currentCoords[0], 2) + 
+        Math.pow(point[1] - currentCoords[1], 2)
+      );
+      
+      if (distance < minDistance) {
+        minDistance = distance;
+        currentPointIndex = index;
+      }
+    });
+    
+    // Return the remainder of the route
+    if (currentPointIndex !== -1 && currentPointIndex < schedule.route.length - 1) {
+      return schedule.route.slice(currentPointIndex + 1).map(point => ({
+        latitude: point[1],
+        longitude: point[0]
+      }));
+    }
+    
+    return [];
+  }, [schedule, activeCollection, currentStopIndex]);
+  
+  // Function to get the next stop preview
+  const getNextStopPreview = () => {
+    if (!schedule || !schedule.binSequence || currentStopIndex >= schedule.binSequence.length - 1) {
+      return null;
+    }
+    
+    const nextBin = schedule.binSequence[currentStopIndex + 1];
+    if (!nextBin || typeof nextBin === 'string' || !nextBin.location) {
+      return null;
+    }
+    
+    return nextBin;
+  };
+  
   // Return to collector main screen
   const handleGoBack = () => {
     navigation.goBack();
   };
   
+  // Compute precise route segments: past removed, active green, future grey
+  const { activeSegmentCoords, futureSegmentCoords } = useMemo(() => {
+    if (!schedule || !schedule.route || !schedule.binSequence) {
+      return { activeSegmentCoords: [], futureSegmentCoords: [] };
+    }
+    // Convert full route to LatLng array
+    const fullCoords = schedule.route.map(point => ({ latitude: point[1], longitude: point[0] }));
+    // Helper to find closest point index
+    const findClosestIndex = (coords: [number, number]) => {
+      let bestIdx = -1;
+      let minDist = Infinity;
+      schedule.route.forEach((pt, i) => {
+        const d = (pt[0] - coords[0]) ** 2 + (pt[1] - coords[1]) ** 2;
+        if (d < minDist) { minDist = d; bestIdx = i; }
+      });
+      return bestIdx;
+    };
+    // Current bin
+    const currentBin = schedule.binSequence[currentStopIndex];
+    if (typeof currentBin === 'string' || !currentBin.location) {
+      return { activeSegmentCoords: fullCoords, futureSegmentCoords: [] };
+    }
+    const currentIdx = findClosestIndex(currentBin.location.coordinates as [number, number]);
+    // Previous bin if exists
+    let prevIdx = 0;
+    if (currentStopIndex > 0) {
+      const prevBin = schedule.binSequence[currentStopIndex - 1];
+      if (typeof prevBin !== 'string' && prevBin.location) {
+        prevIdx = findClosestIndex(prevBin.location.coordinates as [number, number]);
+      }
+    }
+    // Slice segments
+    const active = fullCoords.slice(prevIdx, currentIdx + 1);
+    const future = fullCoords.slice(currentIdx + 1);
+    return { activeSegmentCoords: active, futureSegmentCoords: future };
+  }, [schedule, currentStopIndex]);
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -192,16 +466,35 @@ const CollectorRouteScreen = () => {
           showsCompass={true}
           toolbarEnabled={false}
         >
-          {/* Route Polyline */}
-          {schedule.route && schedule.route.length > 0 && (
-            <Polyline
-              coordinates={schedule.route.map((point) => ({
-                latitude: point[1],
-                longitude: point[0],
-              }))}
-              strokeWidth={4}
-              strokeColor="#12805c"
-            />
+          {activeCollection ? (
+            // Only active and future segments when collecting
+            <>
+              {activeSegmentCoords.length > 0 && (
+                <Polyline
+                  coordinates={activeSegmentCoords}
+                  strokeWidth={5}
+                  strokeColor="#12805c"  // Normal green for active
+                  zIndex={3}
+                />
+              )}
+              {futureSegmentCoords.length > 0 && (
+                <Polyline
+                  coordinates={futureSegmentCoords}
+                  strokeWidth={4}
+                  strokeColor="rgba(18, 128, 92, 0.5)"  // Greyed out for future
+                  zIndex={2}
+                />
+              )}
+            </>
+          ) : (
+            // Full route when not collecting
+            schedule?.route && (
+              <Polyline
+                coordinates={schedule.route.map(pt => ({ latitude: pt[1], longitude: pt[0] }))}
+                strokeWidth={4}
+                strokeColor="#12805c"
+              />
+            )
           )}
           
           {/* Start Location Marker - Using area's fixed start location */}
@@ -256,6 +549,10 @@ const CollectorRouteScreen = () => {
               return null;
             }
             
+            // Apply different styling based on whether the bin is completed or current
+            const isCompleted = isBinCollected(bin._id);
+            const isCurrent = activeCollection && index === currentStopIndex;
+            
             return (
               <Marker
                 key={bin._id || `bin-${index}`}
@@ -263,7 +560,7 @@ const CollectorRouteScreen = () => {
                   latitude: bin.location.coordinates[1],
                   longitude: bin.location.coordinates[0],
                 }}
-                title={`Bin ${index + 1}`}
+                title={`Bin ${index + 1}${isCompleted ? ' (Collected)' : ''}`}
                 description={`Fill Level: ${bin.fillLevel || 0}% - ${bin.wasteType || 'General'}`}
                 anchor={{x: 0.5, y: 0.5}}
                 onPress={() => {
@@ -277,14 +574,23 @@ const CollectorRouteScreen = () => {
                   
                   // Also highlight this bin in the list below
                   setSelectedBin({...bin, index});
+                  
+                  // In active collection mode, allow jumping to this stop
+                  if (activeCollection) {
+                    setCurrentStopIndex(index);
+                  }
                 }}
               >
                 {/* Custom Bin Marker */}
                 <View style={styles.binMarkerContainer}>
-                  {/* Main Bin Icon - Color based on fill level */}
+                  {/* Main Bin Icon - Color based on collection status */}
                   <View style={[
                     styles.binMarker, 
-                    { backgroundColor: getBinFillColor(bin.fillLevel || 0) }
+                    { 
+                      backgroundColor: isCompleted ? '#9E9E9E' : getBinFillColor(bin.fillLevel || 0),
+                      borderColor: isCurrent ? '#FFC107' : '#FFFFFF',
+                      borderWidth: isCurrent ? 3 : 2,
+                    }
                   ]}>
                     <Text style={styles.binMarkerNumber}>{index + 1}</Text>
                   </View>
@@ -307,91 +613,177 @@ const CollectorRouteScreen = () => {
         </View>
       </View>
       
-      {/* Bin Stops List - Bottom section */}
-      <View style={styles.stopsContainer}>
-        <View style={styles.stopsHeader}>
-          <Text style={styles.stopsTitle}>Collection Stops</Text>
-          <Text style={styles.stopsSubtitle}>
-            {schedule.binSequence && Array.isArray(schedule.binSequence) ? schedule.binSequence.length : 0} bins total
-          </Text>
-        </View>
-        
-        {/* Scrollable List of Stops */}
-        <FlatList
-          data={Array.isArray(schedule.binSequence) ? 
-            // Filter out any string items, only pass bin objects to FlatList
-            schedule.binSequence.filter(item => typeof item !== 'string') as Bin[] : 
-            []
-          }
-          keyExtractor={(item, index) => item._id || `stop-${index}`}
-          renderItem={({ item, index }) => {
-            const bin = item as Bin;
-            
-            return (
-              <TouchableOpacity 
+      {/* Active Collection UI or Regular Stops List */}
+      {activeCollection ? (
+        <View style={styles.activeCollectionContainer}>
+          {/* Progress indicator */}
+          <View style={styles.progressIndicator}>
+            <Text style={styles.progressText}>
+              Stop {currentStopIndex + 1} of {schedule.binSequence?.length || 0}
+            </Text>
+            <View style={styles.progressBar}>
+              <View 
                 style={[
-                  styles.stopItem,
-                  selectedBin?._id === bin._id ? styles.selectedStopItem : null
-                ]}
-                onPress={() => {
-                  // Center map on bin
-                  mapRef.current?.animateToRegion({
-                    latitude: bin.location.coordinates[1],
-                    longitude: bin.location.coordinates[0],
-                    latitudeDelta: LATITUDE_DELTA / 2,
-                    longitudeDelta: LONGITUDE_DELTA / 2,
-                  }, 500);
-                  
-                  // Highlight this bin in the list
-                  setSelectedBin({...bin, index});
-                }}
-              >
-                <View style={styles.stopNumberContainer}>
-                  <View style={[
-                    styles.stopNumberBadge,
-                    { backgroundColor: getBinFillColor(bin.fillLevel || 0) }
-                  ]}>
-                    <Text style={styles.stopNumberText}>{index + 1}</Text>
-                  </View>
-                </View>
+                  styles.progressFill, 
+                  { width: `${((currentStopIndex + 1) / (schedule.binSequence?.length || 1)) * 100}%` }
+                ]} 
+              />
+            </View>
+          </View>
+          
+          {/* Current Stop Card */}
+          {schedule.binSequence && currentStopIndex < schedule.binSequence.length && (
+            <View style={styles.currentStopCard}>
+              {(() => {
+                const currentBin = schedule.binSequence[currentStopIndex];
+                if (!currentBin || typeof currentBin === 'string') return null;
                 
-                <View style={styles.stopDetails}>
-                  <View style={styles.stopDetailsRow}>
-                    <Text style={styles.stopBinId}>Bin ID: {bin._id}</Text> 
-                    {bin.wasteType && (
-                    <View style={styles.wasteTypeContainer}>
-                      <Text style={styles.wasteTypeLabel}>{bin.wasteType}</Text>
+                return (
+                  <>
+                    <View style={styles.currentStopHeader}>
+                      <View style={styles.currentStopInfo}>
+                        <Text style={styles.currentStopTitle}>Current Stop</Text>
+                        <Text style={styles.currentStopBinId}>Bin ID: {currentBin._id}</Text>
+                      </View>
+                      <View style={[
+                        styles.currentStopNumberBadge,
+                        { backgroundColor: getBinFillColor(currentBin.fillLevel || 0) }
+                      ]}>
+                        <Text style={styles.currentStopNumberText}>{currentStopIndex + 1}</Text>
+                      </View>
                     </View>
-                    )}
+                    
+                    <View style={styles.currentStopDetails}>
+                      <View style={styles.currentStopDetail}>
+                        <Text style={styles.currentStopDetailLabel}>Fill Level:</Text>
+                        <View style={styles.fillLevelBarLarge}>
+                          <View 
+                            style={[
+                              styles.fillLevelIndicator, 
+                              { 
+                                width: `${currentBin.fillLevel || 0}%`,
+                                backgroundColor: getBinFillColor(currentBin.fillLevel || 0)
+                              }
+                            ]} 
+                          />
+                        </View>
+                        <Text style={styles.fillLevelPercentage}>{currentBin.fillLevel || 0}%</Text>
+                      </View>
+                      
+                      <View style={styles.currentStopDetail}>
+                        <Text style={styles.currentStopDetailLabel}>Waste Type:</Text>
+                        <View style={styles.wasteTypeContainerLarge}>
+                          <Text style={styles.wasteTypeLabelLarge}>{currentBin.wasteType || 'General'}</Text>
+                        </View>
+                      </View>
+                      
+                      {currentBin.address && (
+                        <View style={styles.currentStopDetail}>
+                          <Text style={styles.currentStopDetailLabel}>Address:</Text>
+                          <Text style={styles.currentStopAddress}>{currentBin.address}</Text>
+                        </View>
+                      )}
+                    </View>
+                    
+                    {/* Mark as Collected Button */}
+                    <TouchableOpacity 
+                      style={styles.markCollectedButton}
+                      onPress={markBinCollected}
+                    >
+                      <MaterialCommunityIcons name="check" size={24} color="#ffffff" />
+                      <Text style={styles.markCollectedButtonText}>Mark as Collected</Text>
+                    </TouchableOpacity>
+                  </>
+                );
+              })()}
+            </View>
+          )}
+        </View>
+      ) : (
+        /* Regular Stops List - Bottom section when not in active collection */
+        <View style={styles.stopsContainer}>
+          <View style={styles.stopsHeader}>
+            <Text style={styles.stopsTitle}>Collection Stops</Text>
+            <Text style={styles.stopsSubtitle}>
+              {schedule.binSequence && Array.isArray(schedule.binSequence) ? schedule.binSequence.length : 0} bins total
+            </Text>
+          </View>
+          
+          {/* Scrollable List of Stops */}
+          <FlatList
+            data={Array.isArray(schedule.binSequence) ? 
+              // Filter out any string items, only pass bin objects to FlatList
+              schedule.binSequence.filter(item => typeof item !== 'string') as Bin[] : 
+              []
+            }
+            keyExtractor={(item, index) => item._id || `stop-${index}`}
+            renderItem={({ item, index }) => {
+              const bin = item as Bin;
+              
+              return (
+                <TouchableOpacity 
+                  style={[
+                    styles.stopItem,
+                    selectedBin?._id === bin._id ? styles.selectedStopItem : null
+                  ]}
+                  onPress={() => {
+                    // Center map on bin
+                    mapRef.current?.animateToRegion({
+                      latitude: bin.location.coordinates[1],
+                      longitude: bin.location.coordinates[0],
+                      latitudeDelta: LATITUDE_DELTA / 2,
+                      longitudeDelta: LONGITUDE_DELTA / 2,
+                    }, 500);
+                    
+                    // Highlight this bin in the list
+                    setSelectedBin({...bin, index});
+                  }}
+                >
+                  <View style={styles.stopNumberContainer}>
+                    <View style={[
+                      styles.stopNumberBadge,
+                      { backgroundColor: getBinFillColor(bin.fillLevel || 0) }
+                    ]}>
+                      <Text style={styles.stopNumberText}>{index + 1}</Text>
+                    </View>
                   </View>
                   
-                  <View style={styles.fillLevelContainer}>
-                    <Text style={styles.fillLevelText}>Fill Level:</Text>
-                    <View style={styles.fillLevelBar}>
-                      <View 
-                        style={[
-                          styles.fillLevelIndicator, 
-                          { 
-                            width: `${bin.fillLevel || 0}%`,
-                            backgroundColor: getBinFillColor(bin.fillLevel || 0)
-                          }
-                        ]} 
-                      />
+                  <View style={styles.stopDetails}>
+                    <View style={styles.stopDetailsRow}>
+                      <Text style={styles.stopBinId}>Bin ID: {bin._id}</Text>
+                      {bin.wasteType && (
+                      <View style={styles.wasteTypeContainer}>
+                        <Text style={styles.wasteTypeLabel}>{bin.wasteType}</Text>
+                      </View>
+                      )}
                     </View>
-                    <Text style={styles.fillLevelPercentage}>{bin.fillLevel || 0}%</Text>
+                    
+                    <View style={styles.fillLevelContainer}>
+                      <Text style={styles.fillLevelText}>Fill Level:</Text>
+                      <View style={styles.fillLevelBar}>
+                        <View 
+                          style={[
+                            styles.fillLevelIndicator, 
+                            { 
+                              width: `${bin.fillLevel || 0}%`,
+                              backgroundColor: getBinFillColor(bin.fillLevel || 0)
+                            }
+                          ]} 
+                        />
+                      </View>
+                      <Text style={styles.fillLevelPercentage}>{bin.fillLevel || 0}%</Text>
+                    </View>
                   </View>
-                  
-                  
-                </View>
-              </TouchableOpacity>
-            );
-          }}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
-                  />
-      </View>
+                </TouchableOpacity>
+              );
+            }}
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
+          />
+        </View>
+      )}
       
-      {/* Start Collection Button (FAB) */}
-      {schedule.status === 'scheduled' && (
+      {/* Start Collection Button (FAB) - Only shown when not in active collection */}
+      {schedule.status === 'scheduled' && !activeCollection && (
         <TouchableOpacity 
           style={styles.fab}
           onPress={handleStartCollection}
@@ -431,7 +823,7 @@ const getBinFillColor = (fillLevel: number): string => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9f9f9',
+    backgroundColor: '#fff',
   },
   loadingContainer: {
     flex: 1,
@@ -455,7 +847,7 @@ const styles = StyleSheet.create({
     marginVertical: 12,
   },
   mapContainer: {
-    height: '60%', // Take up 60% of the screen height
+    height: '52%', // Take up 60% of the screen height
     position: 'relative',
   },
   map: {
@@ -551,7 +943,17 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   stopsContainer: {
-    height: '40%', // Take up 40% of screen height
+    height: '48%', // Take up 40% of screen height
+    backgroundColor: '#f9f9f9',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 16,
+
+    paddingBottom: 90, // Overlap the map slightly
+  },
+  // Active Collection UI Styles
+  activeCollectionContainer: {
+    height: '48%',
     backgroundColor: '#f9f9f9',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
@@ -561,7 +963,119 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 5,
     elevation: 10,
-    paddingBottom: 90, // Overlap the map slightly
+  },
+  progressIndicator: {
+    marginBottom: 12,
+  },
+  progressText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#666',
+    marginBottom: 6,
+  },
+  progressBar: {
+    height: 8,
+    backgroundColor: '#EEEEEE',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#12805c',
+    borderRadius: 4,
+  },
+  currentStopCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  currentStopHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  currentStopInfo: {
+    flex: 1,
+  },
+  currentStopTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
+  },
+  currentStopBinId: {
+    fontSize: 14,
+    color: '#666',
+  },
+  currentStopNumberBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#12805c',
+  },
+  currentStopNumberText: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  currentStopDetails: {
+    marginBottom: 16,
+  },
+  currentStopDetail: {
+    marginBottom: 10,
+  },
+  currentStopDetailLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333',
+    marginBottom: 4,
+  },
+  fillLevelBarLarge: {
+    height: 10,
+    backgroundColor: '#EEEEEE',
+    borderRadius: 5,
+    overflow: 'hidden',
+    marginVertical: 6,
+  },
+  wasteTypeContainerLarge: {
+    backgroundColor: '#E8F5E9',
+    borderRadius: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    alignSelf: 'flex-start',
+  },
+  wasteTypeLabelLarge: {
+    fontSize: 14,
+    color: '#2E7D32',
+    fontWeight: '500',
+  },
+  currentStopAddress: {
+    fontSize: 14,
+    color: '#666',
+  },
+  markCollectedButton: {
+    backgroundColor: '#12805c',
+    borderRadius: 8,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  markCollectedButtonText: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+    fontSize: 16,
+    marginLeft: 8,
   },
   stopsHeader: {
     flexDirection: 'row',
@@ -667,8 +1181,8 @@ const styles = StyleSheet.create({
   fab: {
     position: 'absolute',
     bottom: 20,
-    marginHorizontal: 16,
-    width: 378,  
+    left: 16,
+    right: 16,  
     backgroundColor: '#12805c',
     borderRadius: 12,
     paddingVertical: 12,
