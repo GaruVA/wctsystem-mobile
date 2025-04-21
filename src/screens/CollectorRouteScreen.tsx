@@ -120,11 +120,6 @@ const CollectorRouteScreen = () => {
     }
     // Focus on the first stop
     focusOnStop(0);
-    // Inform user
-    Alert.alert(
-      'Collection Started',
-      'Your collection route has been started. Follow the stops in order to complete your collection.'
-    );
   };
   
   // Mark the current bin as collected and advance to next stop
@@ -555,7 +550,10 @@ const CollectorRouteScreen = () => {
               description="Offload Facility"
               anchor={{x: 0.5, y: 0.5}}
             >
-              <View style={styles.endMarkerContainer}>
+              <View style={[
+                  styles.endMarkerContainer,
+                  activeCollection && allBinsCollected ? { borderColor: 'rgba(18,128,92,1)', borderWidth: 3 } : null
+                ]}>
                 <MaterialCommunityIcons name="factory" size={16} color="#FFF" />
               </View>
             </Marker>
@@ -579,9 +577,9 @@ const CollectorRouteScreen = () => {
               return null;
             }
             
-            // Apply different styling based on whether the bin is completed or current
+            // Determine highlight state: no current bin when proceeding to end
             const isCompleted = isBinCollected(bin._id);
-            const isCurrent = activeCollection && index === currentStopIndex;
+            const isCurrent = activeCollection && !allBinsCollected && index === currentStopIndex;
             
             return (
               <Marker
@@ -615,10 +613,10 @@ const CollectorRouteScreen = () => {
                 <View style={styles.binMarkerContainer}>
                   {/* Main Bin Icon - Color based on collection status */}
                   <View style={[
-                    styles.binMarker, 
-                    { 
+                    styles.binMarker,
+                    {
                       backgroundColor: isCompleted ? '#9E9E9E' : getBinFillColor(bin.fillLevel || 0),
-                      borderColor: isCurrent ? '#FFC107' : '#FFFFFF',
+                      borderColor: isCurrent ? 'rgba(18,128,92,1)' : '#FFFFFF',
                       borderWidth: isCurrent ? 3 : 2,
                     }
                   ]}>
@@ -666,10 +664,11 @@ const CollectorRouteScreen = () => {
           
           {/* Current Stop Card */}
           {allBinsCollected ? (
-            <View style={styles.currentStopCard}>
-              <Text style={styles.currentStopTitle}>All bins have been collected</Text>
-              <Text style={styles.currentStopBinId}>Proceed to end point</Text>
-              <TouchableOpacity style={styles.markCollectedButton} onPress={async () => {
+            <View style={styles.proceedCard}>
+              <MaterialCommunityIcons name="flag-checkered" size={48} color="#12805c" />
+              <Text style={styles.proceedTitle}>All bins have been collected</Text>
+              <Text style={styles.proceedSubtitle}>Proceed to end point</Text>
+              <TouchableOpacity style={styles.proceedButton} onPress={async () => {
                 if (!schedule || !token) return;
                 try {
                   const updated = await updateScheduleStatus(schedule._id, 'completed', token);
@@ -680,8 +679,7 @@ const CollectorRouteScreen = () => {
                   Alert.alert('Error', 'Failed to complete schedule.');
                 }
               }}>
-                <MaterialCommunityIcons name="flag-checkered" size={24} color="#fff" />
-                <Text style={styles.markCollectedButtonText}>Finish Route</Text>
+                <Text style={styles.proceedButtonText}>Finish Route</Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -1285,6 +1283,54 @@ const styles = StyleSheet.create({
   backButtonText: {
     color: 'white',
     fontWeight: 'bold',
+  },
+  proceedCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    height: 324,
+    alignItems: 'center',
+    paddingTop: 70,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  proceedTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginTop: 12,
+  },
+  proceedSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 16,
+  },
+  proceedButton: {
+    position: 'absolute',
+    bottom: 25,
+    left: 16,
+    right: 16,  
+    backgroundColor: '#12805c',
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 5,
+  },
+  proceedButtonText: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+    fontSize: 16,
+    marginLeft: 8,
   },
 });
 
