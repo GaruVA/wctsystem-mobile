@@ -671,9 +671,8 @@ const CollectorRouteScreen = () => {
               <TouchableOpacity style={styles.proceedButton} onPress={async () => {
                 if (!schedule || !token) return;
                 try {
-                  const updated = await updateScheduleStatus(schedule._id, 'completed', token);
-                  setSchedule(updated);
-                  setActiveCollection(false);
+                  await updateScheduleStatus(schedule._id, 'completed', token);
+                  navigation.replace('RouteSummary', { scheduleId: schedule._id });
                 } catch (error) {
                   console.error(error);
                   Alert.alert('Error', 'Failed to complete schedule.');

@@ -6,6 +6,7 @@ import MapScreen from '../screens/MapScreen';
 import CollectorLoginScreen from '../screens/CollectorLoginScreen';
 import CollectorMainScreen from '../screens/CollectorMainScreen';
 import CollectorRouteScreen from '../screens/CollectorRouteScreen';
+import RouteSummaryScreen from '../screens/RouteSummaryScreen';
 import { CollectorAuthProvider } from '../context/CollectorAuthContext';
 import { RootStackParamList } from './types';
 
@@ -26,6 +27,7 @@ const AppNavigator = () => {
           <Stack.Screen name="CollectorLogin" component={CollectorLoginScreen} />
           <Stack.Screen name="CollectorMain" component={CollectorMainScreen} />
           <Stack.Screen name="CollectorRoute" component={CollectorRouteScreen} />
+          <Stack.Screen name="RouteSummary" component={RouteSummaryScreen} />
         </Stack.Navigator>
       </CollectorAuthProvider>
     </NavigationContainer>

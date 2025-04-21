@@ -125,8 +125,14 @@ const CollectorMainScreen = () => {
   const handleScheduleSelect = (schedule: Schedule) => {
     setSelectedSchedule(schedule);
     
-    // Navigate to the route screen with the selected schedule
-    navigation.navigate('CollectorRoute', { scheduleId: schedule._id });
+    // Check the status of the schedule
+    if (schedule.status === 'completed') {
+      // If completed, navigate to the route summary screen
+      navigation.navigate('RouteSummary', { scheduleId: schedule._id });
+    } else {
+      // For scheduled or in-progress, navigate to the route screen
+      navigation.navigate('CollectorRoute', { scheduleId: schedule._id });
+    }
   };
 
   // Group schedules by date category
