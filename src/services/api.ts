@@ -111,6 +111,42 @@ export const getBinDetails = async (binId: string): Promise<Bin | null> => {
   }
 };
 
+// binSuggestion function
+export const submitBinSuggestion = async (
+  location: { latitude: number; longitude: number },
+  reason: string,
+  status: string = 'pending',
+  createdAt: Date = new Date(),
+  updatedAt: Date = new Date()
+) => {
+  try {
+    const response = await fetch('YOUR_API_ENDPOINT/suggestions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        location: {
+          type: 'Point',
+          coordinates: [location.longitude, location.latitude]
+        },
+        reason,
+        status,
+        createdAt,
+        updatedAt
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to submit suggestion');
+    }
+
+    return await response.json();
+  } catch (error) {
+    throw error;
+  }
+};
+
 // Collector API Operations
 export const getCollectorArea = async (token: string): Promise<AreaData> => {
   console.log('API: Fetching collector area data');

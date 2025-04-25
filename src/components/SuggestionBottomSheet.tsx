@@ -1,12 +1,13 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 
 interface SuggestionBottomSheetProps {
   coordinates: { latitude: number; longitude: number } | null;
   onConfirm: () => void;
+  isLoading?: boolean;
 }
 
-const SuggestionBottomSheet: React.FC<SuggestionBottomSheetProps> = ({ coordinates, onConfirm }) => {
+const SuggestionBottomSheet: React.FC<SuggestionBottomSheetProps> = ({ coordinates, onConfirm, isLoading = false  }) => {
   return (
     <View style={styles.container}>
       {coordinates && (
@@ -14,8 +15,12 @@ const SuggestionBottomSheet: React.FC<SuggestionBottomSheetProps> = ({ coordinat
           Selected Location: {coordinates.latitude.toFixed(6)}, {coordinates.longitude.toFixed(6)}
         </Text>
       )}
-      <TouchableOpacity style={styles.confirmButton} onPress={onConfirm}>
-        <Text style={styles.confirmButtonText}>Confirm</Text>
+      <TouchableOpacity style={styles.confirmButton} onPress={onConfirm} disabled={isLoading}>
+      {isLoading ? (
+          <ActivityIndicator color="#fff" size="small" />
+        ) : (
+          <Text style={styles.confirmButtonText}>Confirm Location</Text>
+        )}
       </TouchableOpacity>
     </View>
   );
@@ -49,6 +54,9 @@ const styles = StyleSheet.create({
   confirmButtonText: {
     color: '#fff',
     fontWeight: 'bold',
+  },
+  confirmButtonDisabled: {
+    backgroundColor: '#84c4b1',
   },
 });
 
