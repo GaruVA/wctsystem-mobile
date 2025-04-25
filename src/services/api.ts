@@ -114,35 +114,25 @@ export const getBinDetails = async (binId: string): Promise<Bin | null> => {
 // binSuggestion function
 export const submitBinSuggestion = async (
   location: { latitude: number; longitude: number },
-  reason: string,
-  status: string = 'pending',
-  createdAt: Date = new Date(),
-  updatedAt: Date = new Date()
-) => {
+  reason: string
+): Promise<any> => {
+  console.log('API: Submitting bin suggestion');
   try {
-    const response = await fetch('YOUR_API_ENDPOINT/suggestions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+    const response = await axios.post(
+      `${API_BASE}/resident/suggestions`, 
+      {
         location: {
           type: 'Point',
           coordinates: [location.longitude, location.latitude]
         },
-        reason,
-        status,
-        createdAt,
-        updatedAt
-      })
-    });
+        reason
+      }
+    );
 
-    if (!response.ok) {
-      throw new Error('Failed to submit suggestion');
-    }
-
-    return await response.json();
+    console.log('API: Bin suggestion submitted successfully');
+    return response.data;
   } catch (error) {
+    console.error('API: Failed to submit bin suggestion:', error);
     throw error;
   }
 };
