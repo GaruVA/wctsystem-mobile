@@ -111,6 +111,30 @@ export const getBinDetails = async (binId: string): Promise<Bin | null> => {
   }
 };
 
+// binSuggestion function
+export const submitBinSuggestion = async (
+  location: { latitude: number; longitude: number },
+  reason: string
+): Promise<any> => {
+  console.log('API: Submitting bin suggestion');
+  try {
+    const payload = {
+      reason,
+      location: {
+        longitude: location.longitude,
+        latitude: location.latitude
+      }
+    };
+    const response = await axios.post(`${API_BASE}/bin-suggestions`, payload);
+
+    console.log('API: Bin suggestion submitted successfully');
+    return response.data;
+  } catch (error) {
+    console.error('API: Failed to submit bin suggestion:', error);
+    throw error;
+  }
+};
+
 // Collector API Operations
 export const getCollectorArea = async (token: string): Promise<AreaData> => {
   console.log('API: Fetching collector area data');

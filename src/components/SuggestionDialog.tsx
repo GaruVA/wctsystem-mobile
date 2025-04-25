@@ -6,9 +6,10 @@ interface SuggestionDialogProps {
   coordinates: { latitude: number; longitude: number } | null;
   onSubmit: (reason: string) => void;
   onCancel: () => void;
+  isSubmitting?: boolean;
 }
 
-const SuggestionDialog: React.FC<SuggestionDialogProps> = ({ visible, coordinates, onSubmit, onCancel }) => {
+const SuggestionDialog: React.FC<SuggestionDialogProps> = ({ visible, coordinates, onSubmit, onCancel, isSubmitting = false }) => {
   const [reason, setReason] = useState('');
 
   const handleSubmit = () => {

@@ -13,7 +13,7 @@ import {
 import MapView, { Marker, Circle } from 'react-native-maps';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
-import { getBinsNearby } from '../services/api';
+import { getBinsNearby, submitBinSuggestion } from '../services/api';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import SuggestionDialog from '../components/SuggestionDialog';
 import SuggestionBottomSheet from '../components/SuggestionBottomSheet';
@@ -128,17 +128,21 @@ const MapScreen = () => {
 
   const handleSubmitSuggestion = async (reason: string) => {
     if (!suggestedLocation) return;
-
     try {
       console.log('Submitting suggestion:', { location: suggestedLocation, reason });
+      
+      // Call the API to submit the suggestion
+      await submitBinSuggestion(suggestedLocation, reason);
+      
       Alert.alert('Success', 'Your suggestion has been submitted.');
-    } catch (error) {
-      console.error('Error submitting suggestion:', error);
-      Alert.alert('Error', 'Failed to submit your suggestion. Please try again.');
-    } finally {
+      
+      // Reset the suggestion mode and related states
       setSuggestionMode(false);
       setShowDialog(false);
       setSuggestedLocation(null);
+    } catch (error) {
+      console.error('Error submitting suggestion:', error);
+      Alert.alert('Error', 'Failed to submit your suggestion. Please try again.');
     }
   };
 
