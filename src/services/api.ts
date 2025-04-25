@@ -118,16 +118,14 @@ export const submitBinSuggestion = async (
 ): Promise<any> => {
   console.log('API: Submitting bin suggestion');
   try {
-    const response = await axios.post(
-      `${API_BASE}/resident/suggestions`, 
-      {
-        location: {
-          type: 'Point',
-          coordinates: [location.longitude, location.latitude]
-        },
-        reason
+    const payload = {
+      reason,
+      location: {
+        longitude: location.longitude,
+        latitude: location.latitude
       }
-    );
+    };
+    const response = await axios.post(`${API_BASE}/bin-suggestions`, payload);
 
     console.log('API: Bin suggestion submitted successfully');
     return response.data;
