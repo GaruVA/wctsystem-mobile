@@ -114,12 +114,14 @@ export const getBinDetails = async (binId: string): Promise<Bin | null> => {
 // binSuggestion function
 export const submitBinSuggestion = async (
   location: { latitude: number; longitude: number },
-  reason: string
+  reason: string,
+  binType: string
 ): Promise<any> => {
   console.log('API: Submitting bin suggestion');
   try {
     const payload = {
       reason,
+      binType,
       location: {
         longitude: location.longitude,
         latitude: location.latitude

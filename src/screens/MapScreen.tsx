@@ -126,13 +126,13 @@ const MapScreen = () => {
     }
   };
 
-  const handleSubmitSuggestion = async (reason: string) => {
+  const handleSubmitSuggestion = async (reason: string, binType: string) => {
     if (!suggestedLocation) return;
     try {
-      console.log('Submitting suggestion:', { location: suggestedLocation, reason });
+      console.log('Submitting suggestion:', { location: suggestedLocation, reason, binType });
       
       // Call the API to submit the suggestion
-      await submitBinSuggestion(suggestedLocation, reason);
+      await submitBinSuggestion(suggestedLocation, reason, binType );
       
       Alert.alert('Success', 'Your suggestion has been submitted.');
       
