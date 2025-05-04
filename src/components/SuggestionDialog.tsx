@@ -30,14 +30,11 @@ const SuggestionDialog: React.FC<SuggestionDialogProps> = ({
   };
 
   const binTypes = [
-    { id: 'general', name: 'General', color: '#9E9E9E', icon: 'delete' },
+    { id: 'general', name: 'General', color: '#FFFF00', icon: 'delete' },
     { id: 'organic', name: 'Organic', color: '#4CAF50', icon: 'leaf' },
     { id: 'recyclable', name: 'Recyclable', color: '#2196F3', icon: 'recycle' },
     { id: 'hazardous', name: 'Hazardous', color: '#FF5722', icon: 'alert' },
-    { id: 'plastic', name: 'Plastic', color: '#00BCD4', icon: 'bottle-soda' },
-    { id: 'paper', name: 'Paper', color: '#8BC34A', icon: 'file' },
-    { id: 'glass', name: 'Glass', color: '#3F51B5', icon: 'glass-fragile' },
-    { id: 'metal', name: 'Metal', color: '#607D8B', icon: 'metal' },
+
   ];
 
   return (
