@@ -13,7 +13,8 @@ import {
 import MapView, { Marker, Circle } from 'react-native-maps';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
-import { getBinsNearby, submitBinSuggestion } from '../services/api';
+import { getBinsNearby, submitBinSuggestion, submitIssue } from '../services/api';
+// import { imageToBase64 } from '../utils/imageUtils';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import SuggestionDialog from '../components/SuggestionDialog';
 import SuggestionBottomSheet from '../components/SuggestionBottomSheet';
@@ -37,8 +38,8 @@ const MapScreen = () => {
   const navigation = useNavigation<MapScreenNavigationProp>();
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [bins, setBins] = useState<Bin[]>([]);
-  const [selectedBin, setSelectedBin] = useState<Bin | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [selectedBin, setSelectedBin] = useState<Bin | null>(null);  const [loading, setLoading] = useState<boolean>(true);
+  const [submittingReport, setSubmittingReport] = useState<boolean>(false);
   const [reportVisible, setReportVisible] = useState(false);
   const [reportText, setReportText] = useState('');
   const [images, setImages] = useState<string[]>([]);
@@ -109,14 +110,40 @@ const MapScreen = () => {
       const uris = result.assets.map(asset => asset.uri);
       setImages([...images, ...uris]);
     }
-  };
-
-  const submitReport = () => {
-    console.log('Report Submitted:', reportText, images);
-    setReportVisible(false);
-    setReportText('');
-    setImages([]);
-    Alert.alert('Success', 'Issue reported successfully.');
+  };  const submitReport = async () => {
+    if (!reportText.trim()) {
+      Alert.alert('Error', 'Please provide a description of the issue.');
+      return;
+    }
+    
+    try {
+      setSubmittingReport(true);
+      
+      // For a production app, we would need to convert images to base64 here
+      // For now, we'll check if there are any images and show a message
+      if (images.length > 0) {
+        console.log('Images attached:', images);
+        Alert.alert(
+          'Note', 
+          'Image processing is currently limited in this demo. In production, images would be properly converted to base64 before sending.',
+          [{ text: 'Continue', onPress: () => console.log('User acknowledged image limitation') }]
+        );
+      }
+      
+      // Submit the issue to the backend
+      await submitIssue(reportText, images);
+      
+      // Reset form and show success message
+      setReportVisible(false);
+      setReportText('');
+      setImages([]);
+      Alert.alert('Success', 'Issue reported successfully.');
+    } catch (error) {
+      console.error('Error submitting report:', error);
+      Alert.alert('Error', 'Failed to submit issue. Please try again.');
+    } finally {
+      setSubmittingReport(false);
+    }
   };
 
   const handleMapRegionChange = (region: { latitude: number; longitude: number }) => {
@@ -163,11 +190,17 @@ const MapScreen = () => {
   };
 
   return (
-    <View style={styles.container}>
-      {loading && (
+    <View style={styles.container}>      {loading && (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#12805c" />
           <Text style={styles.loadingText}>Loading map data...</Text>
+        </View>
+      )}
+
+      {submittingReport && (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#12805c" />
+          <Text style={styles.loadingText}>Submitting report...</Text>
         </View>
       )}
 
@@ -300,13 +333,19 @@ const MapScreen = () => {
               {images.map((uri, idx) => (
                 <Image key={idx} source={{ uri }} style={styles.previewImage} />
               ))}
-            </View>
-            <View style={styles.modalButtons}>
+            </View>            <View style={styles.modalButtons}>
               <TouchableOpacity onPress={() => setReportVisible(false)} style={styles.cancelButton}>
                 <Text style={{ color: '#fff' }}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={submitReport} style={styles.submitButton}>
-                <Text style={{ color: '#fff' }}>Submit</Text>
+              </TouchableOpacity>              <TouchableOpacity 
+                onPress={submitReport} 
+                style={styles.submitButton}
+                disabled={submittingReport}
+              >
+                {submittingReport ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={{ color: '#fff' }}>Submit</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>

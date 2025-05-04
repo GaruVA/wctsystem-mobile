@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Replace with your computer's IP address on your network
 // Using localhost doesn't work when testing on physical devices
-const API_IP = '192.168.1.22'; // Your computer's IP address on the Wi-Fi network
+const API_IP = '192.168.1.3'; // Your computer's IP address on the Wi-Fi network
 const API_PORT = '5000';
 const API_BASE = `http://${API_IP}:${API_PORT}/api`;
 
@@ -250,3 +250,21 @@ export const updateScheduleBinCollected = async (
 
 // Export types for use in other files
 export type { Bin, Schedule, AreaData };
+
+// Issue reporting API
+export const submitIssue = async (description: string, images: string[]): Promise<any> => {
+  console.log('API: Submitting issue report');
+  try {
+    const payload = {
+      description,
+      images
+    };
+    const response = await axios.post(`${API_BASE}/issues`, payload);
+    
+    console.log('API: Issue reported successfully');
+    return response.data;
+  } catch (error) {
+    console.error('API: Failed to submit issue report:', error);
+    throw error;
+  }
+};
