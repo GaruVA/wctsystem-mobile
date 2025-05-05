@@ -110,7 +110,8 @@ const MapScreen = () => {
       const uris = result.assets.map(asset => asset.uri);
       setImages([...images, ...uris]);
     }
-  };  const submitReport = async () => {
+  };  // Submit issue report
+  const submitReport = async () => {
     if (!reportText.trim()) {
       Alert.alert('Error', 'Please provide a description of the issue.');
       return;
@@ -119,18 +120,7 @@ const MapScreen = () => {
     try {
       setSubmittingReport(true);
       
-      // For a production app, we would need to convert images to base64 here
-      // For now, we'll check if there are any images and show a message
-      if (images.length > 0) {
-        console.log('Images attached:', images);
-        Alert.alert(
-          'Note', 
-          'Image processing is currently limited in this demo. In production, images would be properly converted to base64 before sending.',
-          [{ text: 'Continue', onPress: () => console.log('User acknowledged image limitation') }]
-        );
-      }
-      
-      // Submit the issue to the backend
+      // Submit the issue with images - the api will handle uploading them now
       await submitIssue(reportText, images);
       
       // Reset form and show success message
