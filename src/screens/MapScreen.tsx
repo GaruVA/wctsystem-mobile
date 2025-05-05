@@ -110,7 +110,14 @@ const MapScreen = () => {
       const uris = result.assets.map(asset => asset.uri);
       setImages([...images, ...uris]);
     }
-  };  // Submit issue report
+  };
+
+  // Function to remove an image by its index
+  const removeImage = (indexToRemove: number) => {
+    setImages(images.filter((_, index) => index !== indexToRemove));
+  };
+
+  // Submit issue report
   const submitReport = async () => {
     if (!reportText.trim()) {
       Alert.alert('Error', 'Please provide a description of the issue.');
@@ -321,9 +328,18 @@ const MapScreen = () => {
             </TouchableOpacity>
             <View style={styles.imagePreviewContainer}>
               {images.map((uri, idx) => (
-                <Image key={idx} source={{ uri }} style={styles.previewImage} />
+                <View key={idx} style={styles.imageWrapper}>
+                  <Image source={{ uri }} style={styles.previewImage} />
+                  <TouchableOpacity
+                    style={styles.removeImageButton}
+                    onPress={() => removeImage(idx)}
+                  >
+                    <MaterialCommunityIcons name="close-circle" size={20} color="#EF4444" />
+                  </TouchableOpacity>
+                </View>
               ))}
-            </View>            <View style={styles.modalButtons}>
+            </View>
+            <View style={styles.modalButtons}>
               <TouchableOpacity onPress={() => setReportVisible(false)} style={styles.cancelButton}>
                 <Text style={{ color: '#fff' }}>Cancel</Text>
               </TouchableOpacity>              <TouchableOpacity 
@@ -527,8 +543,20 @@ const styles = StyleSheet.create({
   imagePreviewContainer: {
     flexDirection: 'row', flexWrap: 'wrap', marginBottom: 10,
   },
+  imageWrapper: { // Added wrapper for image and remove button
+    position: 'relative',
+    marginRight: 5,
+    marginBottom: 5,
+  },
   previewImage: {
-    width: 60, height: 60, borderRadius: 8, marginRight: 5, marginBottom: 5,
+    width: 60, height: 60, borderRadius: 8,
+  },
+  removeImageButton: { // Style for the remove button
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    backgroundColor: 'white', // Optional: background for better visibility
+    borderRadius: 10,
   },
   modalButtons: {
     flexDirection: 'row', justifyContent: 'space-between',

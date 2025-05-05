@@ -251,7 +251,7 @@ export const updateScheduleBinCollected = async (
 // Export types for use in other files
 export type { Bin, Schedule, AreaData };
 
-// Issue reporting API
+// Issue reporting API - simplified to remove issue type and bin references
 export const submitIssue = async (description: string, images: string[]): Promise<any> => {
   console.log('API: Submitting issue report');
   try {
@@ -275,7 +275,7 @@ export const submitIssue = async (description: string, images: string[]): Promis
         type: fileType
       });
       
-      // Upload the image - fixing the endpoint URL
+      // Upload the image
       const uploadResponse = await axios.post(
         `${API_BASE}/issues/uploads/images`, 
         formData, 
@@ -293,7 +293,7 @@ export const submitIssue = async (description: string, images: string[]): Promis
     // Now submit the issue with the uploaded image URLs
     const payload = {
       description,
-      images: uploadedImageUrls  // These should be URLs that your server can access
+      images: uploadedImageUrls
     };
     
     const response = await axios.post(`${API_BASE}/issues`, payload);
