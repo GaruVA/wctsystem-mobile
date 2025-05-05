@@ -250,3 +250,58 @@ export const updateScheduleBinCollected = async (
 
 // Export types for use in other files
 export type { Bin, Schedule, AreaData };
+
+// Issue reporting API
+export const submitIssue = async (description: string, images: string[]): Promise<any> => {
+  console.log('API: Submitting issue report');
+  try {
+    // First upload each image and get their URLs
+    const uploadedImageUrls: string[] = [];
+    
+    for (const imageUri of images) {
+      // Create a form data object to send the image
+      const formData = new FormData();
+      
+      // Extract just the filename from the full path
+      const filename = imageUri.split('/').pop() || 'image.jpg';
+      
+      // Append the image file to form data
+      const fileType = filename.endsWith('.png') ? 'image/png' : 'image/jpeg';
+      
+      // @ts-ignore - TypeScript might complain about this format but it works with React Native
+      formData.append('image', {
+        uri: imageUri,
+        name: filename,
+        type: fileType
+      });
+      
+      // Upload the image - fixing the endpoint URL
+      const uploadResponse = await axios.post(
+        `${API_BASE}/issues/uploads/images`, 
+        formData, 
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+      );
+      
+      // Add the returned image URL to our array
+      uploadedImageUrls.push(uploadResponse.data.imageUrl);
+    }
+    
+    // Now submit the issue with the uploaded image URLs
+    const payload = {
+      description,
+      images: uploadedImageUrls  // These should be URLs that your server can access
+    };
+    
+    const response = await axios.post(`${API_BASE}/issues`, payload);
+    
+    console.log('API: Issue reported successfully');
+    return response.data;
+  } catch (error) {
+    console.error('API: Failed to submit issue report:', error);
+    throw error;
+  }
+};
