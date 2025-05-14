@@ -26,21 +26,27 @@ const CollectorLoginScreen = () => {
   const navigation = useNavigation<CollectorLoginScreenNavigationProp>();
 
   const handleLogin = async () => {
+    console.log('[CollectorLoginScreen] Attempting login...');
     if (!username || !password) {
       Alert.alert('Error', 'Please enter both username and password');
+      console.log('[CollectorLoginScreen] Username or password missing.');
       return;
     }
 
     try {
       setIsSubmitting(true);
+      console.log(`[CollectorLoginScreen] Calling signIn with username: ${username}`);
       await signIn(username, password);
+      console.log('[CollectorLoginScreen] signIn successful, navigating to CollectorMain.');
       // Navigate to collector main screen if login is successful
       navigation.navigate('CollectorMain');
     } catch (error: any) {
-      console.error('Login error:', error);
+      console.error('[CollectorLoginScreen] Login error:', error);
+      console.log(`[CollectorLoginScreen] Login error response: ${JSON.stringify(error.response?.data)}`);
       Alert.alert('Login Failed', error.response?.data?.message || 'Invalid credentials');
     } finally {
       setIsSubmitting(false);
+      console.log('[CollectorLoginScreen] handleLogin finished.');
     }
   };
 
