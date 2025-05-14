@@ -81,10 +81,11 @@ const MapScreen = () => {
       }
     })();
   }, []);
-
   const refreshBins = async () => {
     if (!location) return;
     setLoading(true);
+    // Close bin details panel on refresh
+    setSelectedBin(null);
     try {
       const binsNearby = await getBinsNearby(location.latitude, location.longitude, 500);
       const mappedBins = binsNearby.map((bin: any) => ({
