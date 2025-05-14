@@ -3,19 +3,34 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 
 // API configuration
-const API_IP = '192.168.1.22'; 
+const API_IP = '192.168.8.108'; 
 const API_PORT = '5000';
 const API_BASE = `http://${API_IP}:${API_PORT}/api`;
 
 // Login API call for collector
 const loginCollector = async (username: string, password: string) => {
-  console.log('CollectorAPI: Attempting login for user:', username);
+  const url = `${API_BASE}/collector/login`;
+  console.log(`CollectorAPI: Attempting login for user: ${username} to ${url}`);
   try {
-    const response = await axios.post(`${API_BASE}/collector/login`, { username, password });
+    // Set a longer timeout for the request (10 seconds)
+    const response = await axios.post(url, { username, password }, { 
+      timeout: 10000,
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
     console.log('CollectorAPI: Login successful, received token');
     return response.data;
   } catch (error) {
-    console.error('CollectorAPI: Login failed:', error);
+    if (axios.isAxiosError(error)) {
+      console.error(`CollectorAPI: Login failed with status: ${error.response?.status || 'No status'}`);
+      console.error(`CollectorAPI: Error message: ${error.message}`);
+      if (error.response) {
+        console.error('CollectorAPI: Response data:', error.response.data);
+      }
+    } else {
+      console.error('CollectorAPI: Login failed with unexpected error:', error);
+    }
     throw error;
   }
 };

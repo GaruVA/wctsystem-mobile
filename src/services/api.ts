@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Replace with your computer's IP address on your network
 // Using localhost doesn't work when testing on physical devices
-const API_IP = '192.168.1.22'; // Your computer's IP address on the Wi-Fi network
+const API_IP = '192.168.8.108'; // Your computer's IP address on the Wi-Fi network
 const API_PORT = '5000';
 const API_BASE = `http://${API_IP}:${API_PORT}/api`;
 
